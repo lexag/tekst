@@ -1,5 +1,5 @@
 use crate::cue::Cue;
-use std::{io::BufReader, path::PathBuf};
+use std::path::PathBuf;
 
 #[derive(serde::Deserialize, serde::Serialize, Default)]
 pub struct Sequence {
@@ -21,6 +21,7 @@ impl Sequence {
 #[derive(serde::Deserialize, serde::Serialize, Default)]
 pub struct SequenceSlot {
     pub path: PathBuf,
+    #[serde(skip)]
     pub sequence: Sequence,
 }
 
