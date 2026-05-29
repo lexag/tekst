@@ -2,7 +2,11 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")] // hide console window on Windows in release
 
 mod app;
+mod cue;
 mod esds;
+mod sequence;
+
+pub const DISPLAY_NUM_LINES: usize = 2;
 
 use crate::app::TekstApp;
 
