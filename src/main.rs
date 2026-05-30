@@ -3,6 +3,8 @@
 
 mod app;
 mod cue;
+mod cuetable;
+mod elements;
 mod esds;
 mod sequence;
 

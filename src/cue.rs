@@ -29,6 +29,10 @@ impl Cue {
         self.text_font = self.text_font.or(Some(style.text_font));
         self
     }
+
+    pub fn make_payload(&self) -> Vec<u8> {
+        vec![]
+    }
 }
 
 pub struct ImageCue {

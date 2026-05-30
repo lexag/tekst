@@ -1,10 +1,11 @@
 use crate::{
-    DISPLAY_NUM_LINES,
     cue::{Cue, GlobalStyle},
+    cuetable,
     sequence::{Sequence, SequenceSlot},
 };
-use egui::{Align2, Color32, FontId, RichText, Sense, Stroke, Widget, pos2, vec2};
+use egui::{Align, Align2, Color32, FontId, Sense, Widget, vec2};
 use egui_file_dialog::FileDialog;
+use egui_table::Table;
 
 #[derive(serde::Deserialize, serde::Serialize, Default)]
 pub enum PatchPointer {
@@ -21,18 +22,21 @@ pub enum PatchPointer {
 #[derive(Default)]
 pub struct TekstApp {
     #[serde(skip)]
-    file_dialog: FileDialog,
+    pub file_dialog: FileDialog,
     #[serde(skip)]
-    ctx: egui::Context,
-    sequences: [Option<SequenceSlot>; 4],
-    selected_sequence_idx: usize,
-    cue_pointer: PatchPointer,
-    file_pick_pointer: PatchPointer,
-    global_style: GlobalStyle,
+    pub ctx: egui::Context,
+    pub sequences: [Option<SequenceSlot>; 4],
+    pub selected_sequence_idx: usize,
+    pub cue_pointer: PatchPointer,
+    pub file_pick_pointer: PatchPointer,
+    pub global_style: GlobalStyle,
     #[serde(skip)]
-    live_cue: Cue,
-    default_cue: Cue,
+    pub live_cue: Cue,
+    pub default_cue: Cue,
+    pub autoscroll: bool,
 }
+
+const MATRIX_BUTTON_SIZE: (f32, f32) = (196.0, 96.0);
 
 impl TekstApp {
     /// Called once before the first frame.
@@ -64,6 +68,34 @@ impl TekstApp {
         a
     }
 
+    pub fn selected_sequence(&mut self) -> &mut Option<SequenceSlot> {
+        &mut self.sequences[self.selected_sequence_idx]
+    }
+
+    pub fn send_payload(&mut self, payload: Vec<u8>) {}
+
+    pub fn go(&mut self) {
+        let new_cue = self.selected_cue();
+        self.send_payload(new_cue.make_payload());
+
+        self.swap_live_cue(new_cue);
+    }
+
+    fn swap_live_cue(&mut self, new_cue: Cue) {
+        match self.cue_pointer {
+            PatchPointer::Sequence(..) => {
+                if let Some(seq) = self.selected_sequence() {
+                    seq.sequence.cue_pointer += 1;
+                    seq.sequence.cue_pointer %= seq.sequence.cues.len();
+                    self.autoscroll = true;
+                }
+            }
+            _ => self.cue_pointer = PatchPointer::Blank,
+        }
+
+        self.live_cue = new_cue;
+    }
+
     pub fn selected_cue(&self) -> Cue {
         match self.cue_pointer {
             PatchPointer::Sequence(idx) => {
@@ -84,6 +116,59 @@ impl TekstApp {
         self.file_pick_pointer = PatchPointer::Sequence(sequence_idx);
         self.file_dialog.pick_file();
     }
+
+    fn sequence_button(&mut self, ui: &mut egui::Ui, i: usize) {
+        let sequence = &self.sequences[i];
+        let button_response = if let Some(seq) = sequence {
+            let button_response = matrix_button(ui, &seq.sequence.name);
+
+            if button_response.clicked() {
+                self.cue_pointer = PatchPointer::Sequence(i)
+            }
+            button_response
+        } else {
+            let msg: &str = "LOAD SEQ";
+            matrix_button(ui, msg)
+        };
+        if button_response.secondary_clicked() {
+            self.load_sequence_file(i)
+        }
+    }
+
+    fn sequences_matrix(&mut self, ui: &mut egui::Ui) {
+        ui.heading("Sequences");
+        ui.horizontal(|ui| {
+            for i in 0..self.sequences.len() {
+                self.sequence_button(ui, i);
+            }
+        });
+    }
+
+    fn global_settings_bar(&mut self, ui: &mut egui::Ui) {
+        ui.horizontal(|ui| {
+            ui.label("Global Brightness:");
+            egui::DragValue::new(&mut self.global_style.brightness).ui(ui);
+            ui.label("Global Fade:");
+            egui::DragValue::new(&mut self.global_style.fade_speed)
+                .range(0..=9)
+                .speed(0.02)
+                .ui(ui);
+            ui.label("Global Font:");
+            egui::DragValue::new(&mut self.global_style.text_font).ui(ui);
+            ui.label("Global Color:");
+            self.global_style.text_color.ui_selector(ui);
+            ui.label("Global Align:");
+            self.global_style.text_align.ui_selector(ui);
+        });
+    }
+}
+
+fn matrix_button(ui: &mut egui::Ui, msg: &str) -> egui::Response {
+    ui.add(
+        egui::Button::new(msg)
+            .wrap()
+            .min_size(MATRIX_BUTTON_SIZE.into()),
+    )
 }
 
 impl eframe::App for TekstApp {
@@ -139,99 +224,35 @@ impl eframe::App for TekstApp {
             });
         });
 
-        egui::Panel::left("left_panel")
+        egui::Panel::right("cuetable")
             .resizable(false)
+            .exact_size(ui.available_width() / 2.0)
             .show_inside(ui, |ui| {
-                ui.take_available_space();
                 ui.vertical(|ui| {
-                    ui.vertical(|ui| {
-                        ui.heading("DISPLAY PROGRAM");
-                        render_screen_preview(ui, &self.live_cue);
-                        ui.heading("DISPLAY PREVIEW");
-                        render_screen_preview(ui, &self.selected_cue());
-                    });
-
-                    ui.vertical(|ui| {
-                        ui.heading("Sequences");
-                        ui.horizontal(|ui| {
-                            for i in 0..self.sequences.len() {
-                                let sequence = &self.sequences[i];
-                                let button_response = if let Some(seq) = sequence {
-                                    let button_response = ui.add(
-                                        egui::Button::new(seq.sequence.name.clone())
-                                            .wrap()
-                                            .min_size((256.0, 96.0).into()),
-                                    );
-
-                                    if button_response.clicked() {
-                                        self.cue_pointer = PatchPointer::Sequence(i)
-                                    }
-                                    button_response
-                                } else {
-                                    ui.add(
-                                        egui::Button::new("LOAD SEQ")
-                                            .wrap()
-                                            .min_size((256.0, 96.0).into()),
-                                    )
-                                };
-                                if button_response.secondary_clicked() {
-                                    self.load_sequence_file(i)
-                                }
-                            }
-                        });
-                    });
+                    self.global_settings_bar(ui);
+                    ui.separator();
+                    cuetable::cue_table(self, ui);
                 });
             });
 
         egui::CentralPanel::default().show_inside(ui, |ui| {
+            ui.take_available_space();
             ui.vertical(|ui| {
-                ui.horizontal(|ui| {
-                    ui.label("Global Brightness:");
-                    egui::DragValue::new(&mut self.global_style.brightness).ui(ui);
-                    ui.label("Global Fade:");
-                    egui::DragValue::new(&mut self.global_style.fade_speed)
-                        .range(0..=9)
-                        .speed(0.02)
-                        .ui(ui);
-                    ui.label("Global Font:");
-                    egui::DragValue::new(&mut self.global_style.text_font).ui(ui);
-                    ui.label("Global Color:");
-                    self.global_style.text_color.ui_selector(ui);
-                    ui.label("Global Align:");
-                    self.global_style.text_align.ui_selector(ui);
+                ui.vertical(|ui| {
+                    ui.heading("DISPLAY PROGRAM");
+                    render_screen_preview(ui, &self.live_cue);
+                    ui.heading("DISPLAY PREVIEW");
+                    render_screen_preview(ui, &self.selected_cue());
                 });
-                ui.separator();
-                egui_table::Table::new()
-                    .headers([egui_table::HeaderRow {
-                        height: 32.0,
-                        groups: vec![(0..2), (2..4), (4..7), (7..9)],
-                    }])
-                    .num_sticky_cols(2)
-                    .columns([
-                        egui_table::Column::new(64.0).resizable(false),
-                        egui_table::Column::new(256.0).resizable(false),
-                        egui_table::Column::new(64.0).resizable(false),
-                        egui_table::Column::new(64.0).resizable(false),
-                        egui_table::Column::new(64.0).resizable(false),
-                        egui_table::Column::new(64.0).resizable(false),
-                        egui_table::Column::new(64.0).resizable(false),
-                        egui_table::Column::new(128.0).resizable(false),
-                        egui_table::Column::new(128.0).resizable(false),
-                    ])
-                    .num_rows(
-                        if let Some(seq) = &self.sequences[self.selected_sequence_idx] {
-                            seq.sequence.cues.len().try_into().unwrap_or_default()
-                        } else {
-                            1
-                        },
-                    )
-                    .show(
-                        ui,
-                        &mut ScriptLineListDelegate {
-                            sequence: &mut self.sequences[self.selected_sequence_idx],
-                            global_style: self.global_style,
-                        },
-                    );
+
+                ui.vertical(|ui| {
+                    ui.horizontal(|ui| {
+                        if matrix_button(ui, "GO").clicked() {
+                            self.go();
+                        }
+                    });
+                    self.sequences_matrix(ui);
+                });
             });
         });
     }
@@ -267,161 +288,4 @@ fn powered_by_egui_and_eframe(ui: &mut egui::Ui) {
         ui.spacing_mut().item_spacing.x = 0.0;
         ui.label("Powered by egui and eframe.");
     });
-}
-
-struct ScriptLineListDelegate<'a> {
-    sequence: &'a mut Option<SequenceSlot>,
-    global_style: GlobalStyle,
-}
-
-// headers:
-// ident
-// text
-// brightness
-// fade speed (if overridden)
-// color
-// align
-// font
-// follow delay
-// timecode follow timestamp
-// auto follow visual countdown
-
-impl egui_table::TableDelegate for ScriptLineListDelegate<'_> {
-    fn row_ui(&mut self, ui: &mut egui::Ui, row_nr: u64) {
-        if row_nr.is_multiple_of(2) {
-            ui.painter()
-                .rect_filled(ui.max_rect(), 0.0, ui.visuals().faint_bg_color);
-        }
-    }
-
-    fn default_row_height(&self) -> f32 {
-        16.0 + 16.0 * DISPLAY_NUM_LINES as f32
-    }
-
-    fn header_cell_ui(&mut self, ui: &mut egui::Ui, cell: &egui_table::HeaderCellInfo) {
-        match cell.col_range.start {
-            0 => ui.label("Line"),
-            2 => ui.label("Brightness / Fade"),
-            4 => ui.label("Design"),
-            7 => ui.label("Auto Follow"),
-            _ => ui.label("N/A"),
-        };
-    }
-
-    fn cell_ui(&mut self, ui: &mut egui::Ui, cell: &egui_table::CellInfo) {
-        let col_nr = cell.col_nr;
-        let row_nr = cell.row_nr;
-
-        let rect = ui.max_rect();
-        let x = rect.right();
-        let stroke = ui.visuals().widgets.noninteractive.bg_stroke;
-        ui.painter()
-            .line_segment([pos2(x, rect.top()), pos2(x, rect.bottom())], stroke);
-        ui.painter()
-            .rect_stroke(rect, 2.0, stroke, egui::StrokeKind::Inside);
-
-        if let Some(seq) = self.sequence {
-            if row_nr as usize == seq.sequence.cue_pointer {
-                ui.painter().rect_stroke(
-                    rect,
-                    2.0,
-                    ui.visuals().widgets.noninteractive.fg_stroke,
-                    egui::StrokeKind::Inside,
-                );
-            }
-            let cue = &seq.sequence.cues[row_nr as usize];
-            ui.centered_and_justified(|ui| {
-                match col_nr {
-                    0 => {
-                        if ui.monospace(cue.ident.clone()).clicked() {
-                            seq.sequence.cue_pointer = row_nr as usize;
-                        }
-                    }
-                    1 => {
-                        ui.vertical(|ui| {
-                            ui.add_space(4.0);
-                            for i in 0..DISPLAY_NUM_LINES {
-                                egui::TextEdit::singleline(&mut cue.text[i].clone())
-                                    .interactive(false)
-                                    .id_salt(i + 0x354634 + row_nr as usize)
-                                    .horizontal_align(egui::Align::Center)
-                                    .ui(ui);
-                            }
-                        });
-                    }
-                    2 => {
-                        if let Some(val) = cue.brightness {
-                            ui.monospace(val.to_string());
-                        } else {
-                            ui.add_enabled(
-                                false,
-                                egui::Label::new(self.global_style.brightness.to_string()),
-                            );
-                        };
-                    }
-                    3 => {
-                        if let Some(val) = cue.fade_speed {
-                            ui.monospace(val.to_string());
-                        } else {
-                            ui.add_enabled(
-                                false,
-                                egui::Label::new(self.global_style.fade_speed.to_string()),
-                            );
-                        };
-                    }
-                    4 => {
-                        if let Some(val) = cue.text_color {
-                            ui.add(egui::Label::new(
-                                RichText::new(val.to_string())
-                                    .monospace()
-                                    .color(val.to_egui_color()),
-                            ));
-                        } else {
-                            ui.add_enabled(
-                                false,
-                                egui::Label::new(self.global_style.text_color.to_string()),
-                            );
-                        };
-                    }
-                    5 => {
-                        if let Some(val) = cue.text_align {
-                            ui.add(egui::Label::new(RichText::new(val.to_string()).monospace()));
-                        } else {
-                            ui.add_enabled(
-                                false,
-                                egui::Label::new(self.global_style.text_align.to_string()),
-                            );
-                        };
-                    }
-                    6 => {
-                        if let Some(val) = cue.text_font {
-                            ui.monospace(val.to_string());
-                        } else {
-                            ui.add_enabled(
-                                false,
-                                egui::Label::new(self.global_style.text_font.to_string()),
-                            );
-                        };
-                    }
-                    7 => {
-                        if let Some(val) = cue.autogo_delay_ms {
-                            ui.monospace(format!("{:.3} s", val as f32 / 1000.0));
-                        };
-                    }
-                    8 => {
-                        if let Some(val) = cue.autogo_timecode {
-                            ui.monospace(val.to_string());
-                        };
-                    }
-                    _ => {
-                        ui.label("N/A");
-                    }
-                };
-            });
-            if (row_nr as usize) < seq.sequence.cue_pointer {
-                ui.painter()
-                    .rect_filled(rect, 0.0, ui.visuals().panel_fill.gamma_multiply(0.5));
-            }
-        }
-    }
 }
