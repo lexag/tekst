@@ -5,7 +5,17 @@ use std::{collections::HashMap, fmt::Display};
 pub type Font = u8;
 
 #[derive(
-    serde::Deserialize, serde::Serialize, Default, Debug, Clone, Copy, Hash, PartialEq, Eq,
+    serde::Deserialize,
+    serde::Serialize,
+    Default,
+    Debug,
+    Clone,
+    Copy,
+    Hash,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
 )]
 pub enum Color {
     Blank = 0x1,
@@ -48,7 +58,19 @@ impl Color {
     }
 }
 
-#[derive(serde::Deserialize, serde::Serialize, Default, Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(
+    serde::Deserialize,
+    serde::Serialize,
+    Default,
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Hash,
+)]
 pub enum TextAlign {
     Left = 0x1,
     Right = 0x2,

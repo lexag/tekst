@@ -1,13 +1,28 @@
 use crate::{
     cue::{Cue, GlobalStyle},
     cuetable,
+    esds::TextAlign,
+    hotkeys::{self, ShortcutMap},
     sequence::{Sequence, SequenceSlot},
 };
-use egui::{Align, Align2, Color32, FontId, Sense, Widget, vec2};
+use egui::{Align, Align2, Color32, FontId, Pos2, Rect, Sense, Widget, vec2};
 use egui_file_dialog::FileDialog;
 use egui_table::Table;
+use std::time::{Duration, Instant};
 
-#[derive(serde::Deserialize, serde::Serialize, Default)]
+#[derive(
+    serde::Deserialize,
+    serde::Serialize,
+    Default,
+    Debug,
+    Clone,
+    PartialEq,
+    PartialOrd,
+    Ord,
+    Eq,
+    Hash,
+    Copy,
+)]
 pub enum PatchPointer {
     #[default]
     Blank,
@@ -34,6 +49,8 @@ pub struct TekstApp {
     pub live_cue: Cue,
     pub default_cue: Cue,
     pub autoscroll: bool,
+    pub shortcuts: ShortcutMap,
+    pub last_go_time: Option<f64>,
 }
 
 const MATRIX_BUTTON_SIZE: (f32, f32) = (196.0, 96.0);
@@ -65,6 +82,7 @@ impl TekstApp {
             ],
             ..Default::default()
         };
+        a.shortcuts = hotkeys::all_default_shortcuts();
         a
     }
 
@@ -74,10 +92,16 @@ impl TekstApp {
 
     pub fn send_payload(&mut self, payload: Vec<u8>) {}
 
+    pub fn go_cue(&mut self, cue: &Cue) {
+        self.send_payload(cue.make_payload());
+        self.live_cue = cue.clone();
+        self.last_go_time = Some(self.ctx.input(|i| i.time));
+        self.ctx.request_repaint();
+    }
+
     pub fn go(&mut self) {
         let new_cue = self.selected_cue();
-        self.send_payload(new_cue.make_payload());
-
+        self.go_cue(&new_cue);
         self.swap_live_cue(new_cue);
     }
 
@@ -92,8 +116,6 @@ impl TekstApp {
             }
             _ => self.cue_pointer = PatchPointer::Blank,
         }
-
-        self.live_cue = new_cue;
     }
 
     pub fn selected_cue(&self) -> Cue {
@@ -120,15 +142,26 @@ impl TekstApp {
     fn sequence_button(&mut self, ui: &mut egui::Ui, i: usize) {
         let sequence = &self.sequences[i];
         let button_response = if let Some(seq) = sequence {
-            let button_response = matrix_button(ui, &seq.sequence.name);
+            let button_response = matrix_button(
+                ui,
+                &seq.sequence.name,
+                if let PatchPointer::Sequence(seq_idx) = self.cue_pointer
+                    && seq_idx == i
+                {
+                    true
+                } else {
+                    false
+                },
+            );
 
             if button_response.clicked() {
-                self.cue_pointer = PatchPointer::Sequence(i)
+                self.cue_pointer = PatchPointer::Sequence(i);
+                self.selected_sequence_idx = i;
             }
             button_response
         } else {
             let msg: &str = "LOAD SEQ";
-            matrix_button(ui, msg)
+            matrix_button(ui, msg, false)
         };
         if button_response.secondary_clicked() {
             self.load_sequence_file(i)
@@ -144,6 +177,12 @@ impl TekstApp {
         });
     }
 
+    fn follow_settings_bar(&mut self, ui: &mut egui::Ui) {
+        ui.horizontal(|ui| {
+            ui.label("Autoscroll");
+            ui.checkbox(&mut self.autoscroll, "");
+        });
+    }
     fn global_settings_bar(&mut self, ui: &mut egui::Ui) {
         ui.horizontal(|ui| {
             ui.label("Global Brightness:");
@@ -161,13 +200,72 @@ impl TekstApp {
             self.global_style.text_align.ui_selector(ui);
         });
     }
+
+    pub fn handle_keybinds(&mut self) {
+        let keys = self.shortcuts.actions.clone();
+        for action in keys {
+            let shortcut = self.shortcuts.get(&action);
+
+            if let Some(shortcut) = shortcut
+                && let Some(kbd) = shortcut.keyboard()
+                && !self.ctx.wants_keyboard_input()
+                && self
+                    .ctx
+                    .input(|i| i.modifiers == kbd.modifiers && i.key_pressed(kbd.logical_key))
+            {
+                hotkeys::exec_action(self, action);
+            }
+        }
+    }
+
+    fn go_flasher(&mut self, ui: &mut egui::Ui) {
+        let now = ui.ctx().input(|i| i.time);
+
+        let col = self
+            .selected_cue()
+            .with_global_style(self.global_style)
+            .text_color
+            .unwrap_or_default()
+            .to_egui_color();
+
+        let base_r = col.r();
+        let base_g = col.g();
+        let base_b = col.b();
+
+        let mut color = egui::Color32::from_rgb(base_r, base_g, base_b);
+
+        if let Some(start) = self.last_go_time {
+            let elapsed = now - start;
+
+            if elapsed < 0.4 {
+                let t = (elapsed / 0.4) as f32;
+
+                // Pulse from bright back to normal
+                color = egui::Color32::from_rgb(
+                    (255.0 * (1.0 - t) + base_r as f32 * t) as u8,
+                    (255.0 * (1.0 - t) + base_g as f32 * t) as u8,
+                    (255.0 * (1.0 - t) + base_b as f32 * t) as u8,
+                );
+
+                ui.ctx().request_repaint();
+            } else {
+                self.last_go_time = None;
+            }
+        }
+
+        egui::ProgressBar::new(1.0)
+            .fill(color)
+            .corner_radius(10.0)
+            .ui(ui);
+    }
 }
 
-fn matrix_button(ui: &mut egui::Ui, msg: &str) -> egui::Response {
+fn matrix_button(ui: &mut egui::Ui, msg: &str, selected: bool) -> egui::Response {
     ui.add(
         egui::Button::new(msg)
             .wrap()
-            .min_size(MATRIX_BUTTON_SIZE.into()),
+            .min_size(MATRIX_BUTTON_SIZE.into())
+            .selected(selected),
     )
 }
 
@@ -178,8 +276,9 @@ impl eframe::App for TekstApp {
     }
 
     /// Called each time the UI needs repainting, which may be many times per second.
-    fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
-        self.file_dialog.update(ui.ctx());
+    fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        self.file_dialog.update(ctx);
+        self.handle_keybinds();
 
         if let Some(path) = self.file_dialog.take_picked() {
             match self.file_pick_pointer {
@@ -193,7 +292,7 @@ impl eframe::App for TekstApp {
         // Put your widgets into a `SidePanel`, `TopBottomPanel`, `CentralPanel`, `Window` or `Area`.
         // For inspiration and more examples, go to https://emilk.github.io/egui
 
-        egui::Panel::top("top_panel").show_inside(ui, |ui| {
+        egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
             // The top panel is often a good place for a menu bar:
 
             egui::MenuBar::new().ui(ui, |ui| {
@@ -210,7 +309,7 @@ impl eframe::App for TekstApp {
                         );
                     }
                     if ui.button("Quit").clicked() {
-                        ui.send_viewport_cmd(egui::ViewportCommand::Close);
+                        ui.ctx().send_viewport_cmd(egui::ViewportCommand::Close);
                     }
                 });
                 ui.add_space(16.0);
@@ -224,33 +323,38 @@ impl eframe::App for TekstApp {
             });
         });
 
-        egui::Panel::right("cuetable")
+        egui::SidePanel::right("cuetable")
             .resizable(false)
-            .exact_size(ui.available_width() / 2.0)
-            .show_inside(ui, |ui| {
+            .exact_width(960.0)
+            .show(ctx, |ui| {
                 ui.vertical(|ui| {
+                    self.follow_settings_bar(ui);
+                    ui.separator();
                     self.global_settings_bar(ui);
                     ui.separator();
                     cuetable::cue_table(self, ui);
                 });
             });
 
-        egui::CentralPanel::default().show_inside(ui, |ui| {
+        egui::CentralPanel::default().show(ctx, |ui| {
             ui.take_available_space();
             ui.vertical(|ui| {
                 ui.vertical(|ui| {
                     ui.heading("DISPLAY PROGRAM");
-                    render_screen_preview(ui, &self.live_cue);
+                    render_screen_preview(ui, &self.live_cue, false);
+                    self.go_flasher(ui);
                     ui.heading("DISPLAY PREVIEW");
-                    render_screen_preview(ui, &self.selected_cue());
+                    render_screen_preview(ui, &self.selected_cue(), true);
                 });
-
+                ui.separator();
                 ui.vertical(|ui| {
+                    ui.heading("Toolbar");
                     ui.horizontal(|ui| {
-                        if matrix_button(ui, "GO").clicked() {
+                        if matrix_button(ui, "GO", false).clicked() {
                             self.go();
                         }
                     });
+                    ui.separator();
                     self.sequences_matrix(ui);
                 });
             });
@@ -258,29 +362,65 @@ impl eframe::App for TekstApp {
     }
 }
 
-fn render_screen_preview(ui: &mut egui::Ui, cue: &Cue) {
+fn render_screen_preview(ui: &mut egui::Ui, cue: &Cue, peek_brightness: bool) {
+    fn text_anchor(rect: Rect, idx: usize, align: TextAlign) -> Pos2 {
+        const EDGE_SPACING_VERTICAL: f32 = 5.0;
+        const EDGE_SPACING_HORIZONTAL: f32 = 10.0;
+        let y = if idx == 0 {
+            rect.top() + EDGE_SPACING_VERTICAL
+        } else {
+            rect.bottom() - EDGE_SPACING_VERTICAL
+        };
+        let x = match align {
+            TextAlign::Left => rect.left() + EDGE_SPACING_HORIZONTAL,
+            TextAlign::Right => rect.right() - EDGE_SPACING_HORIZONTAL,
+            TextAlign::Center => rect.center().x,
+        };
+
+        (x, y).into()
+    }
+    fn text_align(rect: Rect, idx: usize, align: TextAlign) -> Align2 {
+        let vert = if idx == 0 { Align::Min } else { Align::Max };
+        let hor = match align {
+            TextAlign::Left => Align::Min,
+            TextAlign::Right => Align::Max,
+            TextAlign::Center => Align::Center,
+        };
+
+        Align2((hor, vert).into())
+    }
+
     let (resp, p) = ui.allocate_painter((ui.available_width(), 128.0).into(), Sense::CLICK);
     p.rect_filled(resp.rect, 10.0, Color32::BLACK);
-    p.text(
-        resp.rect.center_top() + vec2(0.0, 5.0),
-        Align2::CENTER_TOP,
-        cue.text[0].clone(),
-        FontId::new(48.0, egui::FontFamily::Proportional),
-        cue.text_color
-            .unwrap_or_default()
-            .to_egui_color()
-            .gamma_multiply(cue.brightness.unwrap_or_default() as f32 / 255.0),
-    );
-    p.text(
-        resp.rect.center_bottom() + vec2(0.0, -5.0),
-        Align2::CENTER_BOTTOM,
-        cue.text[1].clone(),
-        FontId::new(48.0, egui::FontFamily::Proportional),
-        cue.text_color
-            .unwrap_or_default()
-            .to_egui_color()
-            .gamma_multiply(cue.brightness.unwrap_or_default() as f32 / 255.0),
-    );
+    let align = cue.text_align.unwrap_or_default();
+    let brightness_factor = cue.brightness.unwrap_or_default() as f32 / 255.0;
+    for idx in [0, 1] {
+        let anchor = text_anchor(resp.rect, idx, align);
+        let alignment = text_align(resp.rect, idx, align);
+        let text = cue.text[idx].clone();
+        let font_id = FontId::new(48.0, egui::FontFamily::Proportional);
+        p.text(
+            anchor,
+            alignment,
+            &text,
+            font_id.clone(),
+            cue.text_color
+                .unwrap_or_default()
+                .to_egui_color()
+                .gamma_multiply(brightness_factor),
+        );
+        if peek_brightness {
+            p.text(
+                anchor,
+                alignment,
+                text,
+                font_id,
+                Color32::DARK_GRAY.gamma_multiply(
+                    (0.5 - cue.brightness.unwrap_or_default() as f32 / 255.0).max(0.0),
+                ),
+            );
+        }
+    }
 }
 
 fn powered_by_egui_and_eframe(ui: &mut egui::Ui) {

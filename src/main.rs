@@ -6,6 +6,7 @@ mod cue;
 mod cuetable;
 mod elements;
 mod esds;
+mod hotkeys;
 mod sequence;
 
 pub const DISPLAY_NUM_LINES: usize = 2;

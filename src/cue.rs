@@ -6,7 +6,18 @@ use crate::{
 // fixme: impl actual type for this
 type SMPTETimestamp = u8;
 
-#[derive(serde::Deserialize, serde::Serialize, Default, Debug, Clone)]
+#[derive(
+    serde::Deserialize,
+    serde::Serialize,
+    Default,
+    Debug,
+    Clone,
+    PartialEq,
+    PartialOrd,
+    Ord,
+    Eq,
+    Hash,
+)]
 pub struct Cue {
     pub ident: String,
     pub text: [String; DISPLAY_NUM_LINES],

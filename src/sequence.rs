@@ -1,7 +1,7 @@
 use crate::cue::Cue;
 use std::path::PathBuf;
 
-#[derive(serde::Deserialize, serde::Serialize, Default)]
+#[derive(serde::Deserialize, serde::Serialize, Default, Debug)]
 pub struct Sequence {
     pub name: String,
     pub cue_pointer: usize,
@@ -18,7 +18,7 @@ impl Sequence {
     }
 }
 
-#[derive(serde::Deserialize, serde::Serialize, Default)]
+#[derive(serde::Deserialize, serde::Serialize, Default, Debug)]
 pub struct SequenceSlot {
     pub path: PathBuf,
     #[serde(skip)]
