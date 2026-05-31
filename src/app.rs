@@ -5,6 +5,7 @@ use crate::{
     cuetable,
     esds::TextAlign,
     hotkeys::{self, ShortcutMap},
+    network::{ConnectionSettings, send_payload},
     sequence::{Sequence, SequenceSlot},
 };
 use egui::{Align, Align2, Color32, FontId, Pos2, Rect, Sense, TextStyle, Widget, vec2};
@@ -12,6 +13,7 @@ use egui_file_dialog::FileDialog;
 use egui_table::Table;
 use std::{
     f32,
+    net::Ipv4Addr,
     time::{Duration, Instant},
 };
 
@@ -54,10 +56,15 @@ pub struct TekstApp {
     pub live_cue: Cue,
     pub default_cue: Cue,
     pub autoscroll: bool,
+    #[serde(skip)]
+    pub auto_follow: bool,
+    #[serde(skip)]
+    pub auto_timecode: bool,
     pub shortcuts: ShortcutMap,
     pub last_go_time: Option<f64>,
     #[serde(skip)]
     pub commandline: CommandLine,
+    pub connection_settings: ConnectionSettings,
 }
 
 const MATRIX_BUTTON_SIZE: (f32, f32) = (196.0, 96.0);
@@ -98,10 +105,8 @@ impl TekstApp {
         &mut self.sequences[self.selected_sequence_idx]
     }
 
-    pub fn send_payload(&mut self, payload: Vec<u8>) {}
-
     pub fn go_cue(&mut self, cue: &Cue) {
-        self.send_payload(cue.make_payload());
+        send_payload(cue.make_payload(), self.connection_settings);
         self.live_cue = cue.clone();
         self.reset_follow_time();
         self.ctx.request_repaint();
@@ -191,8 +196,11 @@ impl TekstApp {
 
     fn follow_settings_bar(&mut self, ui: &mut egui::Ui) {
         ui.horizontal(|ui| {
-            ui.label("Autoscroll");
-            ui.checkbox(&mut self.autoscroll, "");
+            ui.checkbox(&mut self.autoscroll, "Autoscroll");
+            ui.separator();
+            ui.checkbox(&mut self.auto_follow, "AutoGo Follow");
+            ui.separator();
+            ui.checkbox(&mut self.auto_timecode, "AutoGo Timecode");
         });
     }
     fn global_settings_bar(&mut self, ui: &mut egui::Ui) {
@@ -325,6 +333,15 @@ impl eframe::App for TekstApp {
                         ui.ctx().send_viewport_cmd(egui::ViewportCommand::Close);
                     }
                 });
+                ui.label("IP:");
+                let mut octets = self.connection_settings.ip.octets();
+                egui::DragValue::new(&mut octets[0]).ui(ui);
+                egui::DragValue::new(&mut octets[1]).ui(ui);
+                egui::DragValue::new(&mut octets[2]).ui(ui);
+                egui::DragValue::new(&mut octets[3]).ui(ui);
+                self.connection_settings.ip = Ipv4Addr::from_octets(octets);
+                ui.label("Port:");
+                egui::DragValue::new(&mut self.connection_settings.port).ui(ui);
                 ui.add_space(16.0);
 
                 egui::widgets::global_theme_preference_buttons(ui);

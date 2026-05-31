@@ -2,6 +2,7 @@ use crate::{
     DISPLAY_NUM_LINES,
     esds::{Color, Font, TextAlign},
 };
+use std::ops::{Add, BitAnd, ShrAssign};
 
 // fixme: impl actual type for this
 type SMPTETimestamp = u8;
@@ -42,7 +43,42 @@ impl Cue {
     }
 
     pub fn make_payload(&self) -> Vec<u8> {
-        vec![]
+        fn to_ahex(mut val: u8, num_bytes: usize) -> Vec<u8> {
+            let mut out = vec![];
+            while val > 0 {
+                out.push((val & 0xF) + 0x30);
+                val >>= 4;
+            }
+            out.resize(num_bytes, 0x30);
+            out.reverse();
+            out
+        }
+
+        let mut p = vec![];
+        p.extend_from_slice(&[0x01, 0x31, 0x30, 0x30]);
+        p.extend_from_slice(&[0x02, 0x80, 0x81, 0x1a]);
+        p.extend_from_slice(&to_ahex(self.brightness.unwrap_or_default(), 2));
+        p.extend_from_slice(&[0x00, 0x00]);
+        p.extend_from_slice(&to_ahex(
+            if self.fade_speed > Some(1) { 0xF } else { 0x1 },
+            1,
+        ));
+        p.extend_from_slice(&to_ahex(self.fade_speed.unwrap_or_default(), 1));
+        p.extend_from_slice(&[0x00, 0x00]);
+        p.extend_from_slice(&[0x00, 0x00, 0x00, 0x00]);
+        p.extend_from_slice(&[0x1b, 0x0e]);
+        p.extend_from_slice(&to_ahex(self.text_font.unwrap_or_default(), 2));
+        p.extend_from_slice(&to_ahex(self.text_color.unwrap_or_default() as u8, 1));
+        p.extend_from_slice(&to_ahex(self.text_align.unwrap_or_default() as u8, 1));
+        p.extend_from_slice(&[0x30]);
+        p.extend_from_slice(&[0x30]);
+        p.extend(&mut self.text[0].bytes());
+        p.extend_from_slice(b"\r\n");
+        p.extend(&mut self.text[1].bytes());
+        p.extend_from_slice(&[0x00]);
+        p.extend_from_slice(&[0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]);
+
+        p
     }
 }
 
