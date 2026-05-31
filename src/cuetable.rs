@@ -5,6 +5,7 @@ use egui::pos2;
 use crate::DISPLAY_NUM_LINES;
 
 use crate::app::TekstApp;
+use crate::autogo;
 use crate::elements::color_with_default;
 use crate::elements::property_with_default;
 use crate::elements::text_lines;
@@ -61,15 +62,21 @@ impl egui_table::TableDelegate for ScriptLineListDelegate<'_> {
 
         let global_style = self.app.global_style;
 
+        let mut interaction_happened = false;
+        let autofollow_progress = autogo::get_autogo_progress(self.app);
+
         if let Some(seq) = self.app.selected_sequence() {
             if row_nr < EXTRA_ROWS_ABOVE {
                 return;
             }
             let cue_nr = row_nr.saturating_sub(EXTRA_ROWS_ABOVE);
+            let this_is_selected = cue_nr as usize == seq.sequence.cue_pointer;
+
             if cue_nr >= seq.sequence.cues.len() as u64 {
                 return;
             }
-            if cue_nr as usize == seq.sequence.cue_pointer {
+
+            if this_is_selected {
                 ui.painter().rect_stroke(
                     rect,
                     2.0,
@@ -83,6 +90,7 @@ impl egui_table::TableDelegate for ScriptLineListDelegate<'_> {
                     0 => {
                         if ui.monospace(cue.ident.clone()).clicked() {
                             seq.sequence.cue_pointer = cue_nr as usize;
+                            interaction_happened = true;
                         }
                     }
                     1 => {
@@ -105,7 +113,15 @@ impl egui_table::TableDelegate for ScriptLineListDelegate<'_> {
                     }
                     7 => {
                         if let Some(val) = cue.autogo_delay_ms {
-                            ui.monospace(format!("{:.3} s", val as f32 / 1000.0));
+                            ui.monospace(format!(
+                                "{:.3} s",
+                                if this_is_selected {
+                                    1.0 - autofollow_progress
+                                } else {
+                                    1.0
+                                } * val as f32
+                                    / 1000.0
+                            ));
                         };
                     }
                     8 => {
@@ -121,6 +137,9 @@ impl egui_table::TableDelegate for ScriptLineListDelegate<'_> {
             if (cue_nr as usize) < seq.sequence.cue_pointer {
                 ui.painter()
                     .rect_filled(rect, 0.0, ui.visuals().panel_fill.gamma_multiply(0.5));
+            }
+            if interaction_happened {
+                self.app.reset_follow_time();
             }
         }
     }

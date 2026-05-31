@@ -1,4 +1,5 @@
 use crate::{
+    autogo,
     cmdline::CommandLine,
     cue::{Cue, GlobalStyle},
     cuetable,
@@ -89,6 +90,7 @@ impl TekstApp {
             ..Default::default()
         };
         a.shortcuts = hotkeys::all_default_shortcuts();
+        a.reset_follow_time();
         a
     }
 
@@ -101,8 +103,12 @@ impl TekstApp {
     pub fn go_cue(&mut self, cue: &Cue) {
         self.send_payload(cue.make_payload());
         self.live_cue = cue.clone();
-        self.last_go_time = Some(self.ctx.input(|i| i.time));
+        self.reset_follow_time();
         self.ctx.request_repaint();
+    }
+
+    pub fn reset_follow_time(&mut self) {
+        self.last_go_time = Some(self.ctx.input(|i| i.time));
     }
 
     pub fn go(&mut self) {
@@ -254,12 +260,10 @@ impl TekstApp {
                 );
 
                 ui.ctx().request_repaint();
-            } else {
-                self.last_go_time = None;
             }
         }
 
-        egui::ProgressBar::new(1.0)
+        egui::ProgressBar::new(1.0 - autogo::get_autogo_progress(self))
             .fill(color)
             .corner_radius(10.0)
             .ui(ui);
@@ -285,6 +289,9 @@ impl eframe::App for TekstApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         self.file_dialog.update(ctx);
         self.handle_keybinds();
+        autogo::handle_autogo_follow(self);
+
+        ctx.request_repaint();
 
         if let Some(path) = self.file_dialog.take_picked() {
             match self.file_pick_pointer {

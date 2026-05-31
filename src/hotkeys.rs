@@ -73,22 +73,26 @@ pub fn exec_action(app: &mut TekstApp, action_id: ActionID) {
         ActionID::Go => app.go(),
         ActionID::SelectCueUp(num) => {
             if let Some(seq) = app.selected_sequence() {
-                seq.sequence.cue_pointer = seq.sequence.cue_pointer.saturating_sub(num)
+                seq.sequence.cue_pointer = seq.sequence.cue_pointer.saturating_sub(num);
+                app.reset_follow_time();
             }
         }
         ActionID::SelectCueDown(num) => {
             if let Some(seq) = app.selected_sequence() {
-                seq.sequence.cue_pointer = seq.sequence.cue_pointer.saturating_add(num)
+                seq.sequence.cue_pointer = seq.sequence.cue_pointer.saturating_add(num);
+                app.reset_follow_time();
             }
         }
         ActionID::SelectCueFirst => {
             if let Some(seq) = app.selected_sequence() {
-                seq.sequence.cue_pointer = 0
+                seq.sequence.cue_pointer = 0;
+                app.reset_follow_time();
             }
         }
         ActionID::SelectCueLast => {
             if let Some(seq) = app.selected_sequence() {
-                seq.sequence.cue_pointer = seq.sequence.cues.len() - 1
+                seq.sequence.cue_pointer = seq.sequence.cues.len() - 1;
+                app.reset_follow_time();
             }
         }
         ActionID::SelectCueChapterNext => {}
