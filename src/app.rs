@@ -8,7 +8,9 @@ use crate::{
     network::{ConnectionSettings, send_payload},
     sequence::{Sequence, SequenceSlot},
 };
-use egui::{Align, Align2, Color32, FontId, Pos2, Rect, Sense, TextStyle, Widget, vec2};
+use egui::{
+    Align, Align2, Color32, FontId, Layout, Pos2, Rect, RichText, Sense, TextStyle, Widget, vec2,
+};
 use egui_file_dialog::FileDialog;
 use egui_table::Table;
 use std::{
@@ -65,6 +67,7 @@ pub struct TekstApp {
     #[serde(skip)]
     pub commandline: CommandLine,
     pub connection_settings: ConnectionSettings,
+    pub error_messages: Vec<String>,
 }
 
 const MATRIX_BUTTON_SIZE: (f32, f32) = (196.0, 96.0);
@@ -358,7 +361,20 @@ impl eframe::App for TekstApp {
                 .interactive(false)
                 .font(TextStyle::Heading)
                 .desired_width(f32::INFINITY)
-                .show(ui)
+                .show(ui);
+            ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                if !self.error_messages.is_empty() {
+                    ui.colored_label(
+                        ui.visuals().error_fg_color,
+                        RichText::new(format!(
+                            "Warning: {} (1/{})",
+                            self.error_messages[0],
+                            self.error_messages.len()
+                        ))
+                        .heading(),
+                    );
+                }
+            });
         });
 
         egui::SidePanel::right("cuetable")

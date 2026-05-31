@@ -59,6 +59,8 @@ pub enum ActionID {
     CommandLinePlease,
     CommandLineBackspace,
     CommandLineCancel,
+    ToggleAutoscroll,
+    ToggleAutoFollow,
     GoCue(Cue),
 }
 
@@ -73,26 +75,26 @@ pub fn exec_action(app: &mut TekstApp, action_id: ActionID) {
         ActionID::Go => app.go(),
         ActionID::SelectCueUp(num) => {
             if let Some(seq) = app.selected_sequence() {
-                seq.sequence.cue_pointer = seq.sequence.cue_pointer.saturating_sub(num);
-                app.reset_follow_time();
+                seq.sequence.cue_pointer = seq.sequence.cue_pointer.saturating_sub(num).max(0);
             }
         }
         ActionID::SelectCueDown(num) => {
             if let Some(seq) = app.selected_sequence() {
-                seq.sequence.cue_pointer = seq.sequence.cue_pointer.saturating_add(num);
-                app.reset_follow_time();
+                seq.sequence.cue_pointer = seq
+                    .sequence
+                    .cue_pointer
+                    .saturating_add(num)
+                    .min(seq.sequence.cues.len() - 1);
             }
         }
         ActionID::SelectCueFirst => {
             if let Some(seq) = app.selected_sequence() {
                 seq.sequence.cue_pointer = 0;
-                app.reset_follow_time();
             }
         }
         ActionID::SelectCueLast => {
             if let Some(seq) = app.selected_sequence() {
                 seq.sequence.cue_pointer = seq.sequence.cues.len() - 1;
-                app.reset_follow_time();
             }
         }
         ActionID::SelectCueChapterNext => {}
@@ -111,6 +113,11 @@ pub fn exec_action(app: &mut TekstApp, action_id: ActionID) {
         ActionID::CommandLineBackspace => app.commandline.backspace(),
         ActionID::CommandLineCancel => app.commandline.clear(),
         ActionID::GoCue(cue) => app.go_cue(&cue),
+        ActionID::ToggleAutoscroll => app.autoscroll = !app.autoscroll,
+        ActionID::ToggleAutoFollow => {
+            app.auto_follow = !(app.auto_follow || app.auto_timecode);
+            app.auto_timecode = app.auto_follow
+        }
     };
 }
 
@@ -123,6 +130,9 @@ pub fn all_default_shortcuts() -> ShortcutMap {
     shortcuts.add(ActionID::SelectCueUp(1), press(Key::ArrowUp));
     shortcuts.add(ActionID::SelectCueDown(1), press(Key::ArrowDown));
     shortcuts.add(ActionID::GoCue(Cue::default()), press(Key::Delete));
+
+    shortcuts.add(ActionID::ToggleAutoscroll, press(Key::R));
+    shortcuts.add(ActionID::ToggleAutoFollow, press(Key::F));
 
     shortcuts
 }
