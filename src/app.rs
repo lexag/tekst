@@ -1,14 +1,18 @@
 use crate::{
+    cmdline::CommandLine,
     cue::{Cue, GlobalStyle},
     cuetable,
     esds::TextAlign,
     hotkeys::{self, ShortcutMap},
     sequence::{Sequence, SequenceSlot},
 };
-use egui::{Align, Align2, Color32, FontId, Pos2, Rect, Sense, Widget, vec2};
+use egui::{Align, Align2, Color32, FontId, Pos2, Rect, Sense, TextStyle, Widget, vec2};
 use egui_file_dialog::FileDialog;
 use egui_table::Table;
-use std::time::{Duration, Instant};
+use std::{
+    f32,
+    time::{Duration, Instant},
+};
 
 #[derive(
     serde::Deserialize,
@@ -51,6 +55,8 @@ pub struct TekstApp {
     pub autoscroll: bool,
     pub shortcuts: ShortcutMap,
     pub last_go_time: Option<f64>,
+    #[serde(skip)]
+    pub commandline: CommandLine,
 }
 
 const MATRIX_BUTTON_SIZE: (f32, f32) = (196.0, 96.0);
@@ -321,6 +327,14 @@ impl eframe::App for TekstApp {
                     egui::warn_if_debug_build(ui);
                 });
             });
+        });
+
+        egui::TopBottomPanel::bottom("commandline").show(ctx, |ui| {
+            egui::TextEdit::singleline(&mut self.commandline.to_string())
+                .interactive(false)
+                .font(TextStyle::Heading)
+                .desired_width(f32::INFINITY)
+                .show(ui)
         });
 
         egui::SidePanel::right("cuetable")

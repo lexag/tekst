@@ -1,5 +1,6 @@
 use crate::{
     app::{PatchPointer, TekstApp},
+    cmdline::CommandLineToken,
     cue::Cue,
 };
 use egui::{Key, KeyboardShortcut, Modifiers};
@@ -53,8 +54,8 @@ pub enum ActionID {
     SelectCueLast,
     SelectCueChapterNext,
     SelectCueChapterPrev,
-    CommandLineAppendToken(String),
-    CommandLineAppendChar(String),
+    CommandLineAppendToken(CommandLineToken),
+    CommandLineAppendChar(char),
     CommandLinePlease,
     CommandLineBackspace,
     CommandLineCancel,
@@ -92,11 +93,19 @@ pub fn exec_action(app: &mut TekstApp, action_id: ActionID) {
         }
         ActionID::SelectCueChapterNext => {}
         ActionID::SelectCueChapterPrev => {}
-        ActionID::CommandLineAppendToken(token) => {}
-        ActionID::CommandLineAppendChar(c) => {}
-        ActionID::CommandLinePlease => {}
-        ActionID::CommandLineBackspace => {}
-        ActionID::CommandLineCancel => {}
+        ActionID::CommandLineAppendToken(token) => {
+            app.commandline.push_token(token);
+        }
+        ActionID::CommandLineAppendChar(c) => {
+            app.commandline.push_char(c);
+        }
+        ActionID::CommandLinePlease => {
+            let cmd = app.commandline.clone();
+            cmd.execute(app);
+            app.commandline.clear();
+        }
+        ActionID::CommandLineBackspace => app.commandline.backspace(),
+        ActionID::CommandLineCancel => app.commandline.clear(),
         ActionID::GoCue(cue) => app.go_cue(&cue),
     };
 }
@@ -117,34 +126,31 @@ pub fn all_default_shortcuts() -> ShortcutMap {
 fn add_commandline_shortcuts(shortcuts: &mut ShortcutMap) -> Option<()> {
     for i in 0..10 {
         shortcuts.add(
-            ActionID::CommandLineAppendChar(i.to_string()),
+            ActionID::CommandLineAppendChar(i.to_string().chars().next()?),
             press(Key::from_name(&i.to_string())?),
         );
     }
+    shortcuts.add(ActionID::CommandLineAppendChar('.'), press(Key::Period));
 
     shortcuts.add(ActionID::CommandLinePlease, press(Key::Enter));
     shortcuts.add(ActionID::CommandLineBackspace, press(Key::Backspace));
     shortcuts.add(ActionID::CommandLineCancel, press(Key::Escape));
 
     for (token, key) in [
-        ("GOTO", Key::G),
-        ("DELETE", Key::D),
-        ("LOAD", Key::L),
-        ("SEQ", Key::S),
-        ("ART", Key::A),
-        ("CUE", Key::Q),
-        ("PATCH", Key::P),
-        ("INSERT", Key::I),
-        ("EDIT", Key::E),
-        ("ALIGN", Key::X),
-        ("COLOR", Key::C),
-        ("FADE", Key::V),
-        ("BRIGHTNESS", Key::B),
+        (CommandLineToken::Goto, Key::G),
+        (CommandLineToken::Delete, Key::D),
+        (CommandLineToken::Seq, Key::S),
+        (CommandLineToken::Art, Key::A),
+        (CommandLineToken::Cue, Key::Q),
+        (CommandLineToken::Insert, Key::I),
+        (CommandLineToken::Edit, Key::E),
+        (CommandLineToken::Parent, Key::P),
+        (CommandLineToken::Align, Key::X),
+        (CommandLineToken::Color, Key::C),
+        (CommandLineToken::Fade, Key::V),
+        (CommandLineToken::Brightness, Key::B),
     ] {
-        shortcuts.add(
-            ActionID::CommandLineAppendToken(token.to_string()),
-            press(key),
-        );
+        shortcuts.add(ActionID::CommandLineAppendToken(token), press(key));
     }
 
     None
