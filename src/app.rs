@@ -46,7 +46,7 @@ pub struct TekstApp {
     pub ctx: egui::Context,
     pub sequences: [Option<SequenceSlot>; 4],
     pub selected_sequence_idx: usize,
-    pub cue_pointer: PatchPointer,
+    pub patch_pointer: PatchPointer,
     pub file_pick_pointer: PatchPointer,
     pub global_style: GlobalStyle,
     #[serde(skip)]
@@ -112,7 +112,7 @@ impl TekstApp {
     }
 
     fn swap_live_cue(&mut self, new_cue: Cue) {
-        match self.cue_pointer {
+        match self.patch_pointer {
             PatchPointer::Sequence(..) => {
                 if let Some(seq) = self.selected_sequence() {
                     seq.sequence.cue_pointer += 1;
@@ -120,12 +120,12 @@ impl TekstApp {
                     self.autoscroll = true;
                 }
             }
-            _ => self.cue_pointer = PatchPointer::Blank,
+            _ => self.patch_pointer = PatchPointer::Blank,
         }
     }
 
     pub fn selected_cue(&self) -> Cue {
-        match self.cue_pointer {
+        match self.patch_pointer {
             PatchPointer::Sequence(idx) => {
                 let sequence = &self.sequences[idx];
                 if let Some(seq) = sequence {
@@ -151,7 +151,7 @@ impl TekstApp {
             let button_response = matrix_button(
                 ui,
                 &seq.sequence.name,
-                if let PatchPointer::Sequence(seq_idx) = self.cue_pointer
+                if let PatchPointer::Sequence(seq_idx) = self.patch_pointer
                     && seq_idx == i
                 {
                     true
@@ -161,7 +161,7 @@ impl TekstApp {
             );
 
             if button_response.clicked() {
-                self.cue_pointer = PatchPointer::Sequence(i);
+                self.patch_pointer = PatchPointer::Sequence(i);
                 self.selected_sequence_idx = i;
             }
             button_response

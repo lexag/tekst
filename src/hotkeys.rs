@@ -65,7 +65,7 @@ pub enum ActionID {
 pub fn exec_action(app: &mut TekstApp, action_id: ActionID) {
     match action_id {
         ActionID::ChangePatch(pointer) => {
-            app.cue_pointer = pointer;
+            app.patch_pointer = pointer;
             if let PatchPointer::Sequence(i) = pointer {
                 app.selected_sequence_idx = i
             }

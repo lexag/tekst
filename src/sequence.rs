@@ -16,6 +16,16 @@ impl Sequence {
             cues: vec![Cue::default(), Cue::default(), Cue::default()],
         }
     }
+
+    pub fn find_ident(&self, ident: &String) -> Option<usize> {
+        self.cues.iter().position(|c| c.ident == *ident)
+    }
+
+    pub fn goto_ident(&mut self, ident: &String) {
+        if let Some(idx) = self.find_ident(ident) {
+            self.cue_pointer = idx;
+        }
+    }
 }
 
 #[derive(serde::Deserialize, serde::Serialize, Default, Debug)]

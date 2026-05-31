@@ -1,8 +1,8 @@
 use crate::{
-    app::TekstApp,
+    app::{PatchPointer, TekstApp},
     esds::{Color, TextAlign},
 };
-use std::fmt::Display;
+use std::{fmt::Display, slice::Iter};
 
 #[derive(Clone)]
 pub struct CommandLine {
@@ -91,7 +91,172 @@ impl CommandLine {
         }
     }
 
-    pub fn execute(&self, app: &mut TekstApp) {}
+    pub fn execute(&self, app: &mut TekstApp) -> Option<bool> {
+        let mut it = self.tokens.iter();
+        if *it.next()? != CommandLineToken::CommandLineIndicator {
+            return Some(false);
+        }
+        match it.next()? {
+            CommandLineToken::Goto => return self.execute_goto(app, it),
+            CommandLineToken::Edit => return self.execute_edit(app, it),
+            CommandLineToken::Delete => return self.execute_delete(app, it),
+            CommandLineToken::Insert => return self.execute_insert(app, it),
+            _ => {}
+        }
+        Some(true)
+    }
+
+    fn execute_goto(&self, app: &mut TekstApp, mut it: Iter<CommandLineToken>) -> Option<bool> {
+        let ident_type = it.next()?;
+        let CommandLineToken::Ident(ident) = it.next()? else {
+            return None;
+        };
+        let ident_parsed: Option<usize> = ident.parse().ok();
+        match ident_type {
+            CommandLineToken::Cue => {
+                if let Some(seq) = app.selected_sequence() {
+                    seq.sequence.goto_ident(ident)
+                }
+            }
+            CommandLineToken::Seq => {
+                if !(1..=4).contains(&ident_parsed?) {
+                    return None;
+                }
+                app.patch_pointer = PatchPointer::Sequence(ident_parsed? - 1);
+                app.selected_sequence_idx = ident_parsed? - 1;
+            }
+            CommandLineToken::Art => {
+                if !(1..=4).contains(&ident_parsed?) {
+                    return None;
+                }
+                app.patch_pointer = PatchPointer::PatchImageCue(ident_parsed? - 1);
+            }
+            CommandLineToken::PatchCue => {
+                if !(1..=4).contains(&ident_parsed?) {
+                    return None;
+                }
+                app.patch_pointer = PatchPointer::PatchCue(ident_parsed? - 1);
+            }
+            _ => return Some(false),
+        }
+        Some(true)
+    }
+
+    fn execute_edit(&self, app: &mut TekstApp, mut it: Iter<CommandLineToken>) -> Option<bool> {
+        let subject = it.next()?;
+        if *subject == CommandLineToken::Parent {
+            while let Some(prop) = it.next() {
+                match prop {
+                    CommandLineToken::Brightness => {
+                        app.global_style.brightness =
+                            if let CommandLineToken::ValueVal(c) = it.next()? {
+                                *c
+                            } else {
+                                return None;
+                            }
+                    }
+                    CommandLineToken::Color => {
+                        app.global_style.text_color =
+                            if let CommandLineToken::ColorVal(c) = it.next()? {
+                                *c
+                            } else {
+                                return None;
+                            }
+                    }
+                    CommandLineToken::Align => {
+                        app.global_style.text_align =
+                            if let CommandLineToken::AlignVal(c) = it.next()? {
+                                *c
+                            } else {
+                                return None;
+                            }
+                    }
+                    CommandLineToken::Fade => {
+                        app.global_style.fade_speed = if let CommandLineToken::ValueVal(c) =
+                            it.next()?
+                            && *c < 10
+                        {
+                            *c
+                        } else {
+                            return None;
+                        }
+                    }
+                    _ => return None,
+                }
+            }
+        } else {
+            let CommandLineToken::Ident(ident) = it.next()? else {
+                return None;
+            };
+            let cue = match subject {
+                CommandLineToken::Cue => {
+                    if let Some(seq) = app.selected_sequence()
+                        && let Some(idx) = seq.sequence.find_ident(ident)
+                    {
+                        &mut seq.sequence.cues[idx]
+                    } else {
+                        return Some(false);
+                    }
+                }
+                CommandLineToken::PatchCue | CommandLineToken::Art => return Some(false),
+                _ => return Some(false),
+            };
+            while let Some(prop) = it.next() {
+                let val_token = it.next()?;
+                match prop {
+                    CommandLineToken::Brightness => {
+                        cue.brightness = if let CommandLineToken::ValueVal(c) = val_token {
+                            Some(*c)
+                        } else if *val_token == CommandLineToken::Parent {
+                            None
+                        } else {
+                            return None;
+                        }
+                    }
+                    CommandLineToken::Color => {
+                        cue.text_color = if let CommandLineToken::ColorVal(c) = val_token {
+                            Some(*c)
+                        } else if *val_token == CommandLineToken::Parent {
+                            None
+                        } else {
+                            return None;
+                        }
+                    }
+                    CommandLineToken::Align => {
+                        cue.text_align = if let CommandLineToken::AlignVal(c) = val_token {
+                            Some(*c)
+                        } else if *val_token == CommandLineToken::Parent {
+                            None
+                        } else {
+                            return None;
+                        }
+                    }
+                    CommandLineToken::Fade => {
+                        cue.fade_speed = if let CommandLineToken::ValueVal(c) = val_token
+                            && *c < 10
+                        {
+                            Some(*c)
+                        } else if *val_token == CommandLineToken::Parent {
+                            None
+                        } else {
+                            return None;
+                        }
+                    }
+                    _ => return None,
+                }
+            }
+        }
+
+        None
+    }
+
+    fn execute_delete(&self, app: &mut TekstApp, mut it: Iter<CommandLineToken>) -> Option<bool> {
+        Some(true)
+    }
+
+    fn execute_insert(&self, app: &mut TekstApp, mut it: Iter<CommandLineToken>) -> Option<bool> {
+        Some(true)
+    }
 
     fn try_autoreplace(tokens: &mut Vec<CommandLineToken>) {
         for i in (0..tokens.len()).rev() {
@@ -202,10 +367,7 @@ impl CommandLineToken {
                 matches!(f, Self::Ident(..))
             }
             Self::Insert => matches!(f, Self::Cue | Self::Seq | Self::Art | Self::PatchCue,),
-            Self::Edit => matches!(
-                f,
-                Self::Cue | Self::Seq | Self::Art | Self::PatchCue | Self::Parent
-            ),
+            Self::Edit => matches!(f, Self::Cue | Self::Art | Self::PatchCue | Self::Parent),
             Self::Parent => matches!(f, Self::Align | Self::Color | Self::Brightness | Self::Fade),
             Self::Align => matches!(f, Self::AlignVal(..) | Self::Parent),
             Self::Color => matches!(f, Self::ColorVal(..) | Self::Parent),
