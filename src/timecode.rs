@@ -1,5 +1,5 @@
 use oximedia::timecode::{
-    FrameRate, Timecode, TimecodeError, TimecodeReader,
+    FrameRate, Timecode, TimecodeError,
     ltc::{LtcReader, LtcReaderConfig},
 };
 use rodio::microphone::{Input, InputConfig, MicrophoneBuilder};
@@ -59,7 +59,7 @@ pub fn start_timecode_listen(
 }
 
 mod tests {
-    use super::*;
+    
 
     #[test]
     fn ltc_decode_from_file() {

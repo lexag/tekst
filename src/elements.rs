@@ -2,7 +2,10 @@ use crate::{cue::GlobalStyle, esds::Color};
 use egui::{RichText, Widget};
 
 use crate::DISPLAY_NUM_LINES;
-use std::fmt::Display;
+use std::{
+    fmt::Display,
+    net::{Ipv4Addr, SocketAddrV4},
+};
 
 pub fn text_lines(
     cue: &crate::cue::Cue,
@@ -43,4 +46,18 @@ pub fn color_with_default(ui: &mut egui::Ui, opt: Option<Color>, default: &Color
             egui::Label::new(RichText::new(default.to_string()).color(default.to_egui_color())),
         );
     };
+}
+
+pub fn ip_address_entry(ui: &mut egui::Ui, addr: &mut SocketAddrV4) {
+    ui.label("IP:");
+    let mut octets = addr.ip().octets();
+    egui::DragValue::new(&mut octets[0]).ui(ui);
+    egui::DragValue::new(&mut octets[1]).ui(ui);
+    egui::DragValue::new(&mut octets[2]).ui(ui);
+    egui::DragValue::new(&mut octets[3]).ui(ui);
+    addr.set_ip(Ipv4Addr::from_octets(octets));
+    ui.label("Port:");
+    let mut port = addr.port();
+    egui::DragValue::new(&mut port).ui(ui);
+    addr.set_port(port);
 }

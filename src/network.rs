@@ -1,24 +1,34 @@
+use std::error::Error;
 use std::io::Write;
 use std::net::{Ipv4Addr, SocketAddrV4, TcpStream};
 
 #[derive(serde::Deserialize, serde::Serialize, Clone, Copy)]
-pub struct ConnectionSettings {
-    pub ip: Ipv4Addr,
-    pub port: u16,
+pub struct NetworkWriterConfig {
+    pub addr: SocketAddrV4,
 }
 
-impl Default for ConnectionSettings {
+impl Default for NetworkWriterConfig {
     fn default() -> Self {
         Self {
-            ip: Ipv4Addr::new(192, 168, 1, 200),
-            port: 10000,
+            addr: SocketAddrV4::new(Ipv4Addr::new(192, 168, 1, 200), 10000),
         }
     }
 }
 
-pub fn send_payload(payload: Vec<u8>, settings: ConnectionSettings) -> Option<()> {
-    let mut stream = TcpStream::connect(SocketAddrV4::new(settings.ip, settings.port)).ok()?;
+#[derive(serde::Deserialize, serde::Serialize, Clone, Copy, Default)]
+pub struct NetworkWriter {
+    config: NetworkWriterConfig,
+}
 
-    stream.write(&payload);
-    None
+impl NetworkWriter {
+    pub fn send_payload(&self, payload: &[u8]) -> Result<(), std::io::Error> {
+        let mut stream = TcpStream::connect(self.config.addr)?;
+
+        stream.write_all(payload)?;
+        Ok(())
+    }
+
+    pub fn config_mut(&mut self) -> &mut NetworkWriterConfig {
+        &mut self.config
+    }
 }

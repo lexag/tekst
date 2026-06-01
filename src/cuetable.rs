@@ -1,4 +1,3 @@
-use egui::RichText;
 
 use egui::pos2;
 
@@ -9,9 +8,7 @@ use crate::autogo;
 use crate::elements::color_with_default;
 use crate::elements::property_with_default;
 use crate::elements::text_lines;
-use crate::esds::Color;
 use egui::Align;
-use std::fmt::Display;
 
 pub(crate) struct ScriptLineListDelegate<'a> {
     pub(crate) app: &'a mut TekstApp,

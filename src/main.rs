@@ -1,4 +1,7 @@
-#![warn(clippy::all, rust_2018_idioms)]
+#![warn(clippy::pedantic, rust_2018_idioms)]
+#![warn(clippy::struct_field_names, clippy::struct_excessive_bools)]
+#![warn(clippy::cast_lossless, clippy::complexity)]
+#![warn(clippy::needless_pass_by_value, clippy::needless_pass_by_ref_mut)]
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")] // hide console window on Windows in release
 
 mod app;
@@ -7,6 +10,7 @@ mod cmdline;
 mod cue;
 mod cuetable;
 mod elements;
+mod errorlog;
 mod esds;
 mod hotkeys;
 mod network;

@@ -2,20 +2,21 @@ use crate::{
     autogo,
     cmdline::CommandLine,
     cue::{Cue, GlobalStyle},
-    cuetable,
+    cuetable, elements,
+    errorlog::ErrorLog,
     esds::TextAlign,
-    hotkeys::{self, ShortcutMap},
-    network::{ConnectionSettings, send_payload},
+    hotkeys::{self, ShortcutMap, all_default_shortcuts},
+    network::NetworkWriter,
     sequence::{Sequence, SequenceSlot},
     timecode::{TcBlob, start_timecode_listen},
 };
 use egui::{
     Align, Align2, Color32, FontId, Layout, Pos2, Rect, RichText, Sense, TextStyle, Widget,
-    ahash::HashMap, vec2,
+    ahash::HashMap,
 };
 use egui_file_dialog::FileDialog;
 use oximedia::timecode::{FrameRate, Timecode};
-use rodio::{DeviceTrait, microphone::Input};
+use rodio::DeviceTrait;
 use std::{f32, net::Ipv4Addr, sync::mpsc::Receiver};
 
 #[derive(
@@ -60,11 +61,9 @@ pub struct TekstApp {
     pub auto_follow: bool,
     #[serde(skip)]
     pub auto_timecode: bool,
-    pub shortcuts: ShortcutMap,
     pub last_go_time: Option<f64>,
     #[serde(skip)]
     pub commandline: CommandLine,
-    pub connection_settings: ConnectionSettings,
     pub error_messages: HashMap<String, (String, f64)>,
     #[serde(skip)]
     pub timecode_recv: Option<Receiver<TcBlob>>,
@@ -74,6 +73,11 @@ pub struct TekstApp {
     timecode_framerate: FrameRate,
     #[serde(skip)]
     timecode_device_name: Option<String>,
+
+    pub network_writer: NetworkWriter,
+    #[serde(skip)]
+    pub error_log: ErrorLog,
+    pub shortcuts: ShortcutMap,
 }
 
 impl Default for TekstApp {
@@ -91,16 +95,18 @@ impl Default for TekstApp {
             autoscroll: Default::default(),
             auto_follow: Default::default(),
             auto_timecode: Default::default(),
-            shortcuts: Default::default(),
+            shortcuts: all_default_shortcuts(),
             last_go_time: Default::default(),
             commandline: Default::default(),
-            connection_settings: Default::default(),
+
             error_messages: Default::default(),
             timecode_recv: Default::default(),
             last_known_timecode: Default::default(),
             timecode_framerate: FrameRate::Fps25,
             timecode_device_name: None,
             timecode_confidence: 0.0,
+            network_writer: NetworkWriter::default(),
+            error_log: ErrorLog::new(),
         }
     }
 }
@@ -134,7 +140,7 @@ impl TekstApp {
             ],
             ..Default::default()
         };
-        a.shortcuts = hotkeys::all_default_shortcuts();
+        a.shortcuts.rebuild();
         a.reset_follow_time();
         a
     }
@@ -144,10 +150,17 @@ impl TekstApp {
     }
 
     pub fn go_cue(&mut self, cue: &Cue) {
-        send_payload(cue.make_payload(), self.connection_settings);
+        if let Err(e) = self.network_writer.send_payload(&cue.make_payload()) {
+            self.log_error(format!("Could not send on network: {e}"));
+        }
         self.live_cue = cue.clone();
         self.reset_follow_time();
         self.ctx.request_repaint();
+    }
+
+    fn log_error(&mut self, message: String) {
+        let time = self.ctx.input(|i| i.time);
+        self.error_log.log(time, message);
     }
 
     pub fn reset_follow_time(&mut self) {
@@ -160,7 +173,7 @@ impl TekstApp {
         self.swap_live_cue(new_cue);
     }
 
-    fn swap_live_cue(&mut self, new_cue: Cue) {
+    fn swap_live_cue(&mut self, _new_cue: Cue) {
         match self.patch_pointer {
             PatchPointer::Sequence(..) => {
                 if let Some(seq) = self.selected_sequence() {
@@ -288,31 +301,24 @@ impl TekstApp {
     fn go_flasher(&mut self, ui: &mut egui::Ui) {
         let now = ui.ctx().input(|i| i.time);
 
-        let col = self
+        let base_color = self
             .selected_cue()
             .with_global_style(self.global_style)
             .text_color
             .unwrap_or_default()
             .to_egui_color();
 
-        let base_r = col.r();
-        let base_g = col.g();
-        let base_b = col.b();
-
-        let mut color = egui::Color32::from_rgb(base_r, base_g, base_b);
+        let mut color = base_color;
 
         if let Some(start) = self.last_go_time {
             let elapsed = now - start;
 
             if elapsed < 0.4 {
+                #[allow(clippy::cast_possible_truncation)]
                 let t = (elapsed / 0.4) as f32;
 
                 // Pulse from bright back to normal
-                color = egui::Color32::from_rgb(
-                    (255.0 * (1.0 - t) + base_r as f32 * t) as u8,
-                    (255.0 * (1.0 - t) + base_g as f32 * t) as u8,
-                    (255.0 * (1.0 - t) + base_b as f32 * t) as u8,
-                );
+                color = Color32::WHITE.lerp_to_gamma(base_color, t);
 
                 ui.ctx().request_repaint();
             }
@@ -322,6 +328,32 @@ impl TekstApp {
             .fill(color)
             .corner_radius(10.0)
             .ui(ui);
+    }
+
+    fn opaque_time(&self) -> f64 {
+        self.ctx.input(|i| i.time)
+    }
+
+    fn error_label(&mut self, ui: &mut egui::Ui) {
+        ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+            self.error_log.update(self.opaque_time());
+            if let Some(msg) = self.error_log.primary_error() {
+                ui.colored_label(
+                    ui.visuals().error_fg_color,
+                    RichText::new(format!("{} (1/{})", msg, self.error_log.num_errors())).heading(),
+                );
+            } else {
+                ui.heading("(0/0)");
+            }
+        });
+    }
+
+    fn command_line(&mut self, ui: &mut egui::Ui) {
+        egui::TextEdit::singleline(&mut self.commandline.to_string())
+            .interactive(false)
+            .font(TextStyle::Heading)
+            .desired_width(f32::INFINITY)
+            .show(ui);
     }
 }
 
@@ -438,15 +470,7 @@ impl eframe::App for TekstApp {
                     });
                 });
 
-                ui.label("IP:");
-                let mut octets = self.connection_settings.ip.octets();
-                egui::DragValue::new(&mut octets[0]).ui(ui);
-                egui::DragValue::new(&mut octets[1]).ui(ui);
-                egui::DragValue::new(&mut octets[2]).ui(ui);
-                egui::DragValue::new(&mut octets[3]).ui(ui);
-                self.connection_settings.ip = Ipv4Addr::from_octets(octets);
-                ui.label("Port:");
-                egui::DragValue::new(&mut self.connection_settings.port).ui(ui);
+                elements::ip_address_entry(ui, &mut self.network_writer.config_mut().addr);
                 ui.add_space(16.0);
 
                 egui::widgets::global_theme_preference_buttons(ui);
@@ -459,27 +483,8 @@ impl eframe::App for TekstApp {
         });
 
         egui::TopBottomPanel::bottom("commandline").show(ctx, |ui| {
-            egui::TextEdit::singleline(&mut self.commandline.to_string())
-                .interactive(false)
-                .font(TextStyle::Heading)
-                .desired_width(f32::INFINITY)
-                .show(ui);
-            ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                let num_msg = self.error_messages.len();
-                let now = ui.ctx().input(|i| i.time);
-                if let Some(msg) = self.error_messages.iter_mut().next() {
-                    ui.colored_label(
-                        ui.visuals().error_fg_color,
-                        RichText::new(format!("Warning: {} (1/{})", msg.1.0, num_msg,)).heading(),
-                    );
-                    if now - msg.1.1 > 5.0 {
-                        let key_to_remove = msg.0.clone();
-                        self.error_messages.remove(&key_to_remove);
-                    }
-                } else {
-                    ui.heading("(0/0)");
-                }
-            });
+            self.command_line(ui);
+            self.error_label(ui);
         });
 
         egui::SidePanel::right("cuetable")
@@ -538,7 +543,7 @@ fn render_screen_preview(ui: &mut egui::Ui, cue: &Cue, peek_brightness: bool) {
 
         (x, y).into()
     }
-    fn text_align(rect: Rect, idx: usize, align: TextAlign) -> Align2 {
+    fn text_align(_rect: Rect, idx: usize, align: TextAlign) -> Align2 {
         let vert = if idx == 0 { Align::Min } else { Align::Max };
         let hor = match align {
             TextAlign::Left => Align::Min,

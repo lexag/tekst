@@ -1,6 +1,6 @@
 use crate::DISPLAY_NUM_LINES;
 use egui::{Align, Color32, Response};
-use std::{collections::HashMap, fmt::Display};
+use std::fmt::Display;
 
 pub type Font = u8;
 
@@ -106,43 +106,5 @@ impl Display for TextAlign {
             Self::Left => write!(f, "Left"),
             Self::Right => write!(f, "Right"),
         }
-    }
-}
-
-pub struct ESDSWrapper {
-    pub text_mode: bool,
-    text: [String; DISPLAY_NUM_LINES],
-    image: Vec<Color>,
-    pub color: Color,
-    pub align: TextAlign,
-    pub font: Font,
-    pub brightness: u8,
-    pub fade_speed: u8,
-}
-
-impl ESDSWrapper {
-    pub fn new() -> Self {
-        Self {
-            text_mode: true,
-            text: [const { String::new() }; DISPLAY_NUM_LINES],
-            image: vec![],
-            color: Color::Red,
-            align: TextAlign::Left,
-            font: 64,
-            brightness: 255,
-            fade_speed: 0,
-        }
-    }
-
-    pub fn mut_text(&mut self, line: usize) -> &mut String {
-        if line >= DISPLAY_NUM_LINES {
-            &mut self.text[line]
-        } else {
-            &mut self.text[0]
-        }
-    }
-
-    pub fn set_image(&mut self, image: Vec<Color>) {
-        self.image = image;
     }
 }

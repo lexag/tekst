@@ -2,7 +2,6 @@ use crate::{
     DISPLAY_NUM_LINES,
     esds::{Color, Font, TextAlign},
 };
-use std::ops::{Add, BitAnd, ShrAssign};
 
 // fixme: impl actual type for this
 type SMPTETimestamp = u8;

@@ -250,11 +250,11 @@ impl CommandLine {
         None
     }
 
-    fn execute_delete(&self, app: &mut TekstApp, mut it: Iter<CommandLineToken>) -> Option<bool> {
+    fn execute_delete(&self, _app: &mut TekstApp, _it: Iter<CommandLineToken>) -> Option<bool> {
         Some(true)
     }
 
-    fn execute_insert(&self, app: &mut TekstApp, mut it: Iter<CommandLineToken>) -> Option<bool> {
+    fn execute_insert(&self, _app: &mut TekstApp, _it: Iter<CommandLineToken>) -> Option<bool> {
         Some(true)
     }
 
