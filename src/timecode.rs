@@ -1,14 +1,16 @@
 use oximedia::timecode::{
-    FrameRate, Timecode, TimecodeReader,
+    FrameRate, Timecode, TimecodeError, TimecodeReader,
     ltc::{LtcReader, LtcReaderConfig},
 };
 use rodio::microphone::{Input, InputConfig, MicrophoneBuilder};
 use std::{io::Read, sync::mpsc, thread};
 
+pub type TcBlob = Result<(f32, Timecode), TimecodeError>;
+
 pub fn start_timecode_listen(
     input_device: Input,
     frame_rate: FrameRate,
-) -> Option<mpsc::Receiver<(f32, Timecode)>> {
+) -> Option<mpsc::Receiver<TcBlob>> {
     let (snd, rec) = mpsc::channel();
 
     let config = InputConfig::default();
@@ -43,9 +45,12 @@ pub fn start_timecode_listen(
                 // to get the CURRENT frame, we guess that time is linear,
                 // because we can't read the current frame until it's ended.
                 let _ = time.increment();
-                if snd.send((tc_decoder.sync_confidence(), time)).is_err() {
+                if snd.send(Ok((tc_decoder.sync_confidence(), time))).is_err() {
                     break;
                 }
+            } else if let Err(e) = res {
+                println!("error: {e}");
+                let _ = snd.send(Err(e));
             }
         }
     });

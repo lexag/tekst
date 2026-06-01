@@ -7,10 +7,11 @@ use crate::{
     hotkeys::{self, ShortcutMap},
     network::{ConnectionSettings, send_payload},
     sequence::{Sequence, SequenceSlot},
-    timecode::start_timecode_listen,
+    timecode::{TcBlob, start_timecode_listen},
 };
 use egui::{
-    Align, Align2, Color32, FontId, Layout, Pos2, Rect, RichText, Sense, TextStyle, Widget, vec2,
+    Align, Align2, Color32, FontId, Layout, Pos2, Rect, RichText, Sense, TextStyle, Widget,
+    ahash::HashMap, vec2,
 };
 use egui_file_dialog::FileDialog;
 use oximedia::timecode::{FrameRate, Timecode};
@@ -64,9 +65,9 @@ pub struct TekstApp {
     #[serde(skip)]
     pub commandline: CommandLine,
     pub connection_settings: ConnectionSettings,
-    pub error_messages: Vec<String>,
+    pub error_messages: HashMap<String, (String, f64)>,
     #[serde(skip)]
-    pub timecode_recv: Option<Receiver<(f32, Timecode)>>,
+    pub timecode_recv: Option<Receiver<TcBlob>>,
     #[serde(skip)]
     last_known_timecode: Option<Timecode>,
     timecode_confidence: f32,
@@ -347,9 +348,19 @@ impl eframe::App for TekstApp {
 
         if let Some(r) = &self.timecode_recv {
             let res = r.try_recv();
-            if let Ok(time) = res {
-                self.timecode_confidence = time.0;
-                self.last_known_timecode = Some(time.1);
+            match res {
+                Ok(Ok(time)) => {
+                    self.timecode_confidence = time.0;
+                    self.last_known_timecode = Some(time.1);
+                }
+                Ok(Err(e)) => {
+                    self.error_messages.insert(
+                        "tc_err".to_string(),
+                        (format!("Timecode error: {e}"), ctx.input(|i| i.time)),
+                    );
+                    println!("Timecode error: {e}");
+                }
+                _ => {}
             }
         }
 
@@ -454,16 +465,19 @@ impl eframe::App for TekstApp {
                 .desired_width(f32::INFINITY)
                 .show(ui);
             ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                if !self.error_messages.is_empty() {
+                let num_msg = self.error_messages.len();
+                let now = ui.ctx().input(|i| i.time);
+                if let Some(msg) = self.error_messages.iter_mut().next() {
                     ui.colored_label(
                         ui.visuals().error_fg_color,
-                        RichText::new(format!(
-                            "Warning: {} (1/{})",
-                            self.error_messages[0],
-                            self.error_messages.len()
-                        ))
-                        .heading(),
+                        RichText::new(format!("Warning: {} (1/{})", msg.1.0, num_msg,)).heading(),
                     );
+                    if now - msg.1.1 > 5.0 {
+                        let key_to_remove = msg.0.clone();
+                        self.error_messages.remove(&key_to_remove);
+                    }
+                } else {
+                    ui.heading("(0/0)");
                 }
             });
         });
