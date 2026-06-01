@@ -8,16 +8,14 @@ use crate::{
     hotkeys::{self, ShortcutMap, all_default_shortcuts},
     network::NetworkWriter,
     sequence::{Sequence, SequenceSlot},
-    timecode::{TcBlob, start_timecode_listen},
+    timecode::TimecodeReader,
 };
 use egui::{
     Align, Align2, Color32, FontId, Layout, Pos2, Rect, RichText, Sense, TextStyle, Widget,
-    ahash::HashMap,
 };
 use egui_file_dialog::FileDialog;
-use oximedia::timecode::{FrameRate, Timecode};
-use rodio::DeviceTrait;
-use std::{f32, net::Ipv4Addr, sync::mpsc::Receiver};
+use oximedia::timecode::FrameRate;
+use std::f32;
 
 #[derive(
     serde::Deserialize,
@@ -64,20 +62,13 @@ pub struct TekstApp {
     pub last_go_time: Option<f64>,
     #[serde(skip)]
     pub commandline: CommandLine,
-    pub error_messages: HashMap<String, (String, f64)>,
     #[serde(skip)]
-    pub timecode_recv: Option<Receiver<TcBlob>>,
-    #[serde(skip)]
-    last_known_timecode: Option<Timecode>,
-    timecode_confidence: f32,
-    timecode_framerate: FrameRate,
-    #[serde(skip)]
-    timecode_device_name: Option<String>,
-
     pub network_writer: NetworkWriter,
     #[serde(skip)]
     pub error_log: ErrorLog,
     pub shortcuts: ShortcutMap,
+    #[serde(skip)]
+    pub timecode_reader: TimecodeReader,
 }
 
 impl Default for TekstApp {
@@ -99,12 +90,7 @@ impl Default for TekstApp {
             last_go_time: Default::default(),
             commandline: Default::default(),
 
-            error_messages: Default::default(),
-            timecode_recv: Default::default(),
-            last_known_timecode: Default::default(),
-            timecode_framerate: FrameRate::Fps25,
-            timecode_device_name: None,
-            timecode_confidence: 0.0,
+            timecode_reader: TimecodeReader::new(),
             network_writer: NetworkWriter::default(),
             error_log: ErrorLog::new(),
         }
@@ -121,10 +107,12 @@ impl TekstApp {
 
         // Load previous app state (if any).
         // Note that you must enable the `persistence` feature for this to work.
-        let mut a: Self = if let Some(storage) = cc.storage {
+        let mut a: Self = if let Some(storage) = cc.storage
+            && false
+        {
             eframe::get_value(storage, eframe::APP_KEY).unwrap_or_default()
         } else {
-            Default::default()
+            TekstApp::default()
         };
         a.ctx = cc.egui_ctx.clone();
         a.file_dialog = FileDialog::new();
@@ -253,13 +241,17 @@ impl TekstApp {
             ui.separator();
             ui.checkbox(&mut self.auto_timecode, "AutoGo Timecode");
             ui.add(egui::Label::new(
-                RichText::new(if let Some(time) = self.last_known_timecode {
+                RichText::new(if let Some(time) = self.timecode_reader.timecode() {
                     time.to_string()
                 } else {
                     "NO LTC FOUND".to_string()
                 })
                 .monospace()
-                .color(Color32::GREEN.lerp_to_gamma(Color32::RED, 1.0 - self.timecode_confidence)),
+                .color(if self.timecode_reader.confidence() > 0.8 {
+                    Color32::GREEN
+                } else {
+                    Color32::ORANGE
+                }),
             ))
         });
     }
@@ -335,6 +327,13 @@ impl TekstApp {
     }
 
     fn error_label(&mut self, ui: &mut egui::Ui) {
+        ui.add(
+            #[allow(clippy::cast_possible_truncation)]
+            egui::ProgressBar::new(self.error_log.countdown_progress() as f32)
+                .fill(ui.visuals().error_fg_color)
+                .corner_radius(0.0)
+                .desired_height(5.0),
+        );
         ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
             self.error_log.update(self.opaque_time());
             if let Some(msg) = self.error_log.primary_error() {
@@ -348,7 +347,7 @@ impl TekstApp {
         });
     }
 
-    fn command_line(&mut self, ui: &mut egui::Ui) {
+    fn command_line(&self, ui: &mut egui::Ui) {
         egui::TextEdit::singleline(&mut self.commandline.to_string())
             .interactive(false)
             .font(TextStyle::Heading)
@@ -377,24 +376,10 @@ impl eframe::App for TekstApp {
         self.file_dialog.update(ctx);
         self.handle_keybinds();
         autogo::handle_autogo_follow(self);
-
-        if let Some(r) = &self.timecode_recv {
-            let res = r.try_recv();
-            match res {
-                Ok(Ok(time)) => {
-                    self.timecode_confidence = time.0;
-                    self.last_known_timecode = Some(time.1);
-                }
-                Ok(Err(e)) => {
-                    self.error_messages.insert(
-                        "tc_err".to_string(),
-                        (format!("Timecode error: {e}"), ctx.input(|i| i.time)),
-                    );
-                    println!("Timecode error: {e}");
-                }
-                _ => {}
-            }
-        }
+        self.error_log.update(self.opaque_time());
+        if let Err(e) = self.timecode_reader.update() {
+            self.log_error(format!("Timecode error {e}"))
+        };
 
         ctx.request_repaint();
 
@@ -440,31 +425,29 @@ impl eframe::App for TekstApp {
                             ("29.97 (NDF)", FrameRate::Fps2997NDF),
                             ("30", FrameRate::Fps30),
                         ] {
-                            ui.selectable_value(&mut self.timecode_framerate, fr, name);
+                            if ui
+                                .selectable_label(self.timecode_reader.frame_rate() == fr, name)
+                                .clicked()
+                            {
+                                self.timecode_reader.set_frame_rate(fr);
+                            };
                         }
                     });
                     ui.menu_button("Input Device", |ui| {
-                        if let Ok(devices) = rodio::microphone::available_inputs() {
-                            for device in devices {
-                                if let Ok(desc) = device.clone().into_inner().description() {
-                                    let device_string = format!(
-                                        "{} ({})",
-                                        desc.name(),
-                                        desc.extended().join(" | ")
-                                    );
-                                    if ui
-                                        .selectable_label(
-                                            self.timecode_device_name
-                                                == Some(device_string.clone()),
-                                            &device_string,
-                                        )
-                                        .clicked()
-                                    {
-                                        self.timecode_recv =
-                                            start_timecode_listen(device, self.timecode_framerate);
-                                        self.timecode_device_name = Some(device_string);
-                                    }
-                                }
+                        if ui.button("Reload").clicked() {
+                            self.timecode_reader.reload_available_devices();
+                        }
+                        ui.separator();
+                        let devices = self.timecode_reader.available_devices().to_owned();
+                        for (i, device) in devices.iter().enumerate() {
+                            if ui
+                                .selectable_label(
+                                    self.timecode_reader.selected_device_idx() == Some(i),
+                                    device,
+                                )
+                                .clicked()
+                            {
+                                self.timecode_reader.start(i);
                             }
                         }
                     });

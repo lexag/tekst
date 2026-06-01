@@ -56,13 +56,25 @@ impl ErrorLog {
 
     pub fn update(&mut self, time: f64) {
         self.primary_error_countdown = match self.errors.first() {
-            Some(err) => Self::COUNTDOWN_LENGTH - (time - err.time),
+            Some(err) => {
+                let countdown = Self::COUNTDOWN_LENGTH - (time - err.time);
+                if countdown < 0.0 {
+                    self.errors.remove(0);
+                    0.0
+                } else {
+                    countdown
+                }
+            }
             None => 0.0,
         }
     }
 
     pub fn countdown(&self) -> f64 {
         self.primary_error_countdown
+    }
+
+    pub fn countdown_progress(&self) -> f64 {
+        self.primary_error_countdown / Self::COUNTDOWN_LENGTH
     }
 
     pub fn primary_error(&self) -> Option<String> {
