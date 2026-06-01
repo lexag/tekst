@@ -10,4 +10,7 @@ egui = { version = "0.33.3", features = ["persistence", "serde"] }
 egui-file-dialog = "0.12.0"
 egui-keybind = { version = "0.8.0", features = ["serde"] }
 egui_table = "0.7.0"
+hound = "3.5.1"
+oximedia = { path = "../oximedia/oximedia", version = "0.1.7", features = ["timecode"] }
+rodio = "0.22.2"
 serde = { version = "1.0.228", features = ["serde_derive"] }

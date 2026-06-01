@@ -7,17 +7,15 @@ use crate::{
     hotkeys::{self, ShortcutMap},
     network::{ConnectionSettings, send_payload},
     sequence::{Sequence, SequenceSlot},
+    timecode::start_timecode_listen,
 };
 use egui::{
     Align, Align2, Color32, FontId, Layout, Pos2, Rect, RichText, Sense, TextStyle, Widget, vec2,
 };
 use egui_file_dialog::FileDialog;
-use egui_table::Table;
-use std::{
-    f32,
-    net::Ipv4Addr,
-    time::{Duration, Instant},
-};
+use oximedia::timecode::{FrameRate, Timecode};
+use rodio::{DeviceTrait, microphone::Input};
+use std::{f32, net::Ipv4Addr, sync::mpsc::Receiver};
 
 #[derive(
     serde::Deserialize,
@@ -43,7 +41,6 @@ pub enum PatchPointer {
 /// We derive Deserialize/Serialize so we can persist app state on shutdown.
 #[derive(serde::Deserialize, serde::Serialize)]
 #[serde(default)] // if we add new fields, give them default values when deserializing old state
-#[derive(Default)]
 pub struct TekstApp {
     #[serde(skip)]
     pub file_dialog: FileDialog,
@@ -68,6 +65,43 @@ pub struct TekstApp {
     pub commandline: CommandLine,
     pub connection_settings: ConnectionSettings,
     pub error_messages: Vec<String>,
+    #[serde(skip)]
+    pub timecode_recv: Option<Receiver<(f32, Timecode)>>,
+    #[serde(skip)]
+    last_known_timecode: Option<Timecode>,
+    timecode_confidence: f32,
+    timecode_framerate: FrameRate,
+    #[serde(skip)]
+    timecode_device_name: Option<String>,
+}
+
+impl Default for TekstApp {
+    fn default() -> Self {
+        Self {
+            file_dialog: Default::default(),
+            ctx: Default::default(),
+            sequences: Default::default(),
+            selected_sequence_idx: Default::default(),
+            patch_pointer: Default::default(),
+            file_pick_pointer: Default::default(),
+            global_style: Default::default(),
+            live_cue: Default::default(),
+            default_cue: Default::default(),
+            autoscroll: Default::default(),
+            auto_follow: Default::default(),
+            auto_timecode: Default::default(),
+            shortcuts: Default::default(),
+            last_go_time: Default::default(),
+            commandline: Default::default(),
+            connection_settings: Default::default(),
+            error_messages: Default::default(),
+            timecode_recv: Default::default(),
+            last_known_timecode: Default::default(),
+            timecode_framerate: FrameRate::Fps25,
+            timecode_device_name: None,
+            timecode_confidence: 0.0,
+        }
+    }
 }
 
 const MATRIX_BUTTON_SIZE: (f32, f32) = (196.0, 96.0);
@@ -204,6 +238,15 @@ impl TekstApp {
             ui.checkbox(&mut self.auto_follow, "AutoGo Follow");
             ui.separator();
             ui.checkbox(&mut self.auto_timecode, "AutoGo Timecode");
+            ui.add(egui::Label::new(
+                RichText::new(if let Some(time) = self.last_known_timecode {
+                    time.to_string()
+                } else {
+                    "NO LTC FOUND".to_string()
+                })
+                .monospace()
+                .color(Color32::GREEN.lerp_to_gamma(Color32::RED, 1.0 - self.timecode_confidence)),
+            ))
         });
     }
     fn global_settings_bar(&mut self, ui: &mut egui::Ui) {
@@ -302,6 +345,14 @@ impl eframe::App for TekstApp {
         self.handle_keybinds();
         autogo::handle_autogo_follow(self);
 
+        if let Some(r) = &self.timecode_recv {
+            let res = r.try_recv();
+            if let Ok(time) = res {
+                self.timecode_confidence = time.0;
+                self.last_known_timecode = Some(time.1);
+            }
+        }
+
         ctx.request_repaint();
 
         if let Some(path) = self.file_dialog.take_picked() {
@@ -336,6 +387,46 @@ impl eframe::App for TekstApp {
                         ui.ctx().send_viewport_cmd(egui::ViewportCommand::Close);
                     }
                 });
+                ui.menu_button("Timecode", |ui| {
+                    ui.menu_button("Framerate", |ui| {
+                        for (name, fr) in [
+                            ("23.976", FrameRate::Fps23976),
+                            ("24", FrameRate::Fps24),
+                            ("25", FrameRate::Fps25),
+                            ("29.97 (DF)", FrameRate::Fps2997DF),
+                            ("29.97 (NDF)", FrameRate::Fps2997NDF),
+                            ("30", FrameRate::Fps30),
+                        ] {
+                            ui.selectable_value(&mut self.timecode_framerate, fr, name);
+                        }
+                    });
+                    ui.menu_button("Input Device", |ui| {
+                        if let Ok(devices) = rodio::microphone::available_inputs() {
+                            for device in devices {
+                                if let Ok(desc) = device.clone().into_inner().description() {
+                                    let device_string = format!(
+                                        "{} ({})",
+                                        desc.name(),
+                                        desc.extended().join(" | ")
+                                    );
+                                    if ui
+                                        .selectable_label(
+                                            self.timecode_device_name
+                                                == Some(device_string.clone()),
+                                            &device_string,
+                                        )
+                                        .clicked()
+                                    {
+                                        self.timecode_recv =
+                                            start_timecode_listen(device, self.timecode_framerate);
+                                        self.timecode_device_name = Some(device_string);
+                                    }
+                                }
+                            }
+                        }
+                    });
+                });
+
                 ui.label("IP:");
                 let mut octets = self.connection_settings.ip.octets();
                 egui::DragValue::new(&mut octets[0]).ui(ui);

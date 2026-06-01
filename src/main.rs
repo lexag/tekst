@@ -11,6 +11,7 @@ mod esds;
 mod hotkeys;
 mod network;
 mod sequence;
+mod timecode;
 
 pub const DISPLAY_NUM_LINES: usize = 2;
 
