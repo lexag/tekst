@@ -1,4 +1,3 @@
-
 use egui::pos2;
 
 use crate::DISPLAY_NUM_LINES;
@@ -60,7 +59,7 @@ impl egui_table::TableDelegate for ScriptLineListDelegate<'_> {
         let global_style = self.app.global_style;
 
         let mut interaction_happened = false;
-        let autofollow_progress = autogo::get_autogo_progress(self.app);
+        let autofollow_progress = self.app.autogo.progress(&self.app.selected_cue());
 
         if let Some(seq) = self.app.selected_sequence() {
             if row_nr < EXTRA_ROWS_ABOVE {

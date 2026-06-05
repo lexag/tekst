@@ -1,5 +1,5 @@
 use crate::{
-    autogo,
+    autogo::{self, AutoGo, AutoGoConsolidator, AutoTimecode},
     cmdline::CommandLine,
     cue::{Cue, GlobalStyle},
     cuetable, elements,
@@ -11,7 +11,7 @@ use crate::{
     timecode::TimecodeReader,
 };
 use egui::{
-    Align, Align2, Color32, FontId, Layout, Pos2, Rect, RichText, Sense, TextStyle, Widget,
+    Align, Align2, Color32, Context, FontId, Layout, Pos2, Rect, RichText, Sense, TextStyle, Widget,
 };
 use egui_file_dialog::FileDialog;
 use oximedia::timecode::FrameRate;
@@ -68,14 +68,15 @@ pub struct TekstApp {
     pub error_log: ErrorLog,
     pub shortcuts: ShortcutMap,
     #[serde(skip)]
-    pub timecode_reader: TimecodeReader,
+    pub autogo: AutoGoConsolidator,
 }
 
 impl Default for TekstApp {
     fn default() -> Self {
+        let ctx = Context::default();
         Self {
             file_dialog: Default::default(),
-            ctx: Default::default(),
+            ctx: ctx.clone(),
             sequences: Default::default(),
             selected_sequence_idx: Default::default(),
             patch_pointer: Default::default(),
@@ -90,7 +91,7 @@ impl Default for TekstApp {
             last_go_time: Default::default(),
             commandline: Default::default(),
 
-            timecode_reader: TimecodeReader::new(),
+            autogo: AutoGoConsolidator::new(ctx.clone()),
             network_writer: NetworkWriter::default(),
             error_log: ErrorLog::new(),
         }
@@ -241,17 +242,21 @@ impl TekstApp {
             ui.separator();
             ui.checkbox(&mut self.auto_timecode, "AutoGo Timecode");
             ui.add(egui::Label::new(
-                RichText::new(if let Some(time) = self.timecode_reader.timecode() {
-                    time.to_string()
-                } else {
-                    "NO LTC FOUND".to_string()
-                })
+                RichText::new(
+                    if let Some(time) = self.autogo.timecode.timecode_reader.timecode() {
+                        time.to_string()
+                    } else {
+                        "NO LTC FOUND".to_string()
+                    },
+                )
                 .monospace()
-                .color(if self.timecode_reader.confidence() > 0.8 {
-                    Color32::GREEN
-                } else {
-                    Color32::ORANGE
-                }),
+                .color(
+                    if self.autogo.timecode.timecode_reader.confidence() > 0.8 {
+                        Color32::GREEN
+                    } else {
+                        Color32::ORANGE
+                    },
+                ),
             ))
         });
     }
@@ -316,7 +321,7 @@ impl TekstApp {
             }
         }
 
-        egui::ProgressBar::new(1.0 - autogo::get_autogo_progress(self))
+        egui::ProgressBar::new(1.0 - self.autogo.progress(&self.selected_cue()))
             .fill(color)
             .corner_radius(10.0)
             .ui(ui);
@@ -375,9 +380,14 @@ impl eframe::App for TekstApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         self.file_dialog.update(ctx);
         self.handle_keybinds();
-        autogo::handle_autogo_follow(self);
+        if self.autogo.requests_go(&self.selected_cue()) {
+            self.go();
+        }
         self.error_log.update(self.opaque_time());
-        if let Err(e) = self.timecode_reader.update() {
+
+        // FIXME: this should be handled and bubbled up in the autogo function stack, updating
+        // timecode reader when we want info
+        if let Err(e) = self.autogo.timecode.timecode_reader.update() {
             self.log_error(format!("Timecode error {e}"))
         };
 
@@ -426,28 +436,40 @@ impl eframe::App for TekstApp {
                             ("30", FrameRate::Fps30),
                         ] {
                             if ui
-                                .selectable_label(self.timecode_reader.frame_rate() == fr, name)
+                                .selectable_label(
+                                    self.autogo.timecode.timecode_reader.frame_rate() == fr,
+                                    name,
+                                )
                                 .clicked()
                             {
-                                self.timecode_reader.set_frame_rate(fr);
+                                self.autogo.timecode.timecode_reader.set_frame_rate(fr);
                             };
                         }
                     });
                     ui.menu_button("Input Device", |ui| {
                         if ui.button("Reload").clicked() {
-                            self.timecode_reader.reload_available_devices();
+                            self.autogo
+                                .timecode
+                                .timecode_reader
+                                .reload_available_devices();
                         }
                         ui.separator();
-                        let devices = self.timecode_reader.available_devices().to_owned();
+                        let devices = self
+                            .autogo
+                            .timecode
+                            .timecode_reader
+                            .available_devices()
+                            .to_owned();
                         for (i, device) in devices.iter().enumerate() {
                             if ui
                                 .selectable_label(
-                                    self.timecode_reader.selected_device_idx() == Some(i),
+                                    self.autogo.timecode.timecode_reader.selected_device_idx()
+                                        == Some(i),
                                     device,
                                 )
                                 .clicked()
                             {
-                                self.timecode_reader.start(i);
+                                self.autogo.timecode.timecode_reader.start(i);
                             }
                         }
                     });
