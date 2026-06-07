@@ -75,7 +75,6 @@ pub enum ActionID {
     CommandLineBackspace,
     CommandLineCancel,
     ToggleAutoscroll,
-    ToggleAutoFollow,
     GoCue(Cue),
 }
 
@@ -91,15 +90,19 @@ pub fn exec_action(app: &mut TekstApp, action_id: ActionID) {
         ActionID::Go => app.go(),
         ActionID::SelectCueUp(num) => {
             try_cue_sub(app, num);
+            app.autogo.dry_go_happened();
         }
         ActionID::SelectCueDown(num) => {
             try_cue_add(app, num);
+            app.autogo.dry_go_happened();
         }
         ActionID::SelectCueFirst => {
             try_cue_first(app);
+            app.autogo.dry_go_happened();
         }
         ActionID::SelectCueLast => {
             try_cue_last(app);
+            app.autogo.dry_go_happened();
         }
         ActionID::SelectCueChapterNext | ActionID::SelectCueChapterPrev => {}
         ActionID::CommandLineAppendToken(token) => {
@@ -117,10 +120,6 @@ pub fn exec_action(app: &mut TekstApp, action_id: ActionID) {
         ActionID::CommandLineCancel => app.commandline.clear(),
         ActionID::GoCue(cue) => app.go_cue(&cue),
         ActionID::ToggleAutoscroll => app.autoscroll = !app.autoscroll,
-        ActionID::ToggleAutoFollow => {
-            app.auto_follow = !(app.auto_follow || app.auto_timecode);
-            app.auto_timecode = app.auto_follow;
-        }
     }
 }
 
@@ -163,7 +162,6 @@ pub fn all_default_shortcuts() -> ShortcutMap {
     shortcuts.add(ActionID::GoCue(Cue::default()), press(Key::Delete));
 
     shortcuts.add(ActionID::ToggleAutoscroll, press(Key::R));
-    shortcuts.add(ActionID::ToggleAutoFollow, press(Key::F));
 
     shortcuts
 }

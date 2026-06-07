@@ -61,3 +61,22 @@ pub fn ip_address_entry(ui: &mut egui::Ui, addr: &mut SocketAddrV4) {
     egui::DragValue::new(&mut port).ui(ui);
     addr.set_port(port);
 }
+
+pub fn slide_switch_selector<T: Display + PartialEq + Copy>(
+    ui: &mut egui::Ui,
+    val: &mut T,
+    options: &[T],
+) {
+    egui::Frame::new()
+        .fill(ui.visuals().code_bg_color)
+        .show(ui, |ui| {
+            for option in options {
+                if ui
+                    .selectable_label(*val == *option, option.to_string())
+                    .clicked()
+                {
+                    *val = *option;
+                }
+            }
+        });
+}

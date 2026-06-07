@@ -1,5 +1,5 @@
 use crate::{
-    autogo::{self, AutoGo, AutoGoConsolidator, AutoTimecode},
+    autogo::{self, AutoGo, AutoGoConsolidator, AutoGoOpMode, AutoTimecode},
     cmdline::CommandLine,
     cue::{Cue, GlobalStyle},
     cuetable, elements,
@@ -15,7 +15,7 @@ use egui::{
 };
 use egui_file_dialog::FileDialog;
 use oximedia::timecode::FrameRate;
-use std::f32;
+use std::{f32, fmt::Display};
 
 #[derive(
     serde::Deserialize,
@@ -38,6 +38,23 @@ pub enum PatchPointer {
     PatchImageCue(usize),
 }
 
+#[derive(serde::Deserialize, serde::Serialize, Default, Debug, Copy, Clone, PartialEq)]
+pub enum OpMode {
+    Edit,
+    #[default]
+    Demo,
+    Live,
+}
+
+impl Display for OpMode {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            OpMode::Edit => write!(f, "Edit"),
+            OpMode::Demo => write!(f, "Demo"),
+            OpMode::Live => write!(f, "Live"),
+        }
+    }
+}
 /// We derive Deserialize/Serialize so we can persist app state on shutdown.
 #[derive(serde::Deserialize, serde::Serialize)]
 #[serde(default)] // if we add new fields, give them default values when deserializing old state
@@ -55,10 +72,7 @@ pub struct TekstApp {
     pub live_cue: Cue,
     pub default_cue: Cue,
     pub autoscroll: bool,
-    #[serde(skip)]
-    pub auto_follow: bool,
-    #[serde(skip)]
-    pub auto_timecode: bool,
+    pub op_mode: OpMode,
     pub last_go_time: Option<f64>,
     #[serde(skip)]
     pub commandline: CommandLine,
@@ -85,11 +99,10 @@ impl Default for TekstApp {
             live_cue: Default::default(),
             default_cue: Default::default(),
             autoscroll: Default::default(),
-            auto_follow: Default::default(),
-            auto_timecode: Default::default(),
             shortcuts: all_default_shortcuts(),
             last_go_time: Default::default(),
             commandline: Default::default(),
+            op_mode: OpMode::Demo,
 
             autogo: AutoGoConsolidator::new(ctx.clone()),
             network_writer: NetworkWriter::default(),
@@ -108,9 +121,7 @@ impl TekstApp {
 
         // Load previous app state (if any).
         // Note that you must enable the `persistence` feature for this to work.
-        let mut a: Self = if let Some(storage) = cc.storage
-            && false
-        {
+        let mut a: Self = if let Some(storage) = cc.storage {
             eframe::get_value(storage, eframe::APP_KEY).unwrap_or_default()
         } else {
             TekstApp::default()
@@ -122,6 +133,7 @@ impl TekstApp {
                 *seq = SequenceSlot::load_from_path(seq.path.clone()).unwrap_or_default();
             }
         }
+        a.autogo = AutoGoConsolidator::new(a.ctx.clone());
         a.live_cue = Cue {
             text: [
                 "Hello".to_string(),
@@ -139,9 +151,15 @@ impl TekstApp {
     }
 
     pub fn go_cue(&mut self, cue: &Cue) {
-        if let Err(e) = self.network_writer.send_payload(&cue.make_payload()) {
-            self.log_error(format!("Could not send on network: {e}"));
+        if self.op_mode == OpMode::Live {
+            let res = self.network_writer.send_payload(&cue.make_payload());
+            if let Err(e) = res {
+                self.log_error(format!("Could not send on network: {e}"));
+            }
         }
+
+        let learned_cue = self.autogo.go_happened(self.selected_cue().clone());
+        *self.selected_cue_mut() = learned_cue;
         self.live_cue = cue.clone();
         self.reset_follow_time();
         self.ctx.request_repaint();
@@ -157,7 +175,7 @@ impl TekstApp {
     }
 
     pub fn go(&mut self) {
-        let new_cue = self.selected_cue();
+        let new_cue = self.selected_cue_with_global();
         self.go_cue(&new_cue);
         self.swap_live_cue(new_cue);
     }
@@ -175,7 +193,27 @@ impl TekstApp {
         }
     }
 
-    pub fn selected_cue(&self) -> Cue {
+    pub fn selected_cue_mut(&mut self) -> &mut Cue {
+        match self.patch_pointer {
+            PatchPointer::Sequence(idx) => {
+                let sequence = self.sequences[idx].as_mut();
+                if let Some(seq) = sequence {
+                    &mut seq.sequence.cues[seq.sequence.cue_pointer]
+                } else {
+                    &mut self.default_cue
+                }
+            }
+            _ => &mut self.default_cue,
+        }
+    }
+
+    pub fn selected_cue_with_global(&self) -> Cue {
+        self.selected_cue()
+            .clone()
+            .with_global_style(self.global_style)
+    }
+
+    pub fn selected_cue(&self) -> &Cue {
         match self.patch_pointer {
             PatchPointer::Sequence(idx) => {
                 let sequence = &self.sequences[idx];
@@ -187,8 +225,6 @@ impl TekstApp {
             }
             _ => &self.default_cue,
         }
-        .clone()
-        .with_global_style(self.global_style)
     }
 
     pub fn load_sequence_file(&mut self, sequence_idx: usize) {
@@ -235,29 +271,20 @@ impl TekstApp {
     }
 
     fn follow_settings_bar(&mut self, ui: &mut egui::Ui) {
+        const MODES: [AutoGoOpMode; 3] =
+            [AutoGoOpMode::Off, AutoGoOpMode::Ctrl, AutoGoOpMode::Learn];
         ui.horizontal(|ui| {
             ui.checkbox(&mut self.autoscroll, "Autoscroll");
-            ui.separator();
-            ui.checkbox(&mut self.auto_follow, "AutoGo Follow");
-            ui.separator();
-            ui.checkbox(&mut self.auto_timecode, "AutoGo Timecode");
-            ui.add(egui::Label::new(
-                RichText::new(
-                    if let Some(time) = self.autogo.timecode.timecode_reader.timecode() {
-                        time.to_string()
-                    } else {
-                        "NO LTC FOUND".to_string()
-                    },
-                )
-                .monospace()
-                .color(
-                    if self.autogo.timecode.timecode_reader.confidence() > 0.8 {
-                        Color32::GREEN
-                    } else {
-                        Color32::ORANGE
-                    },
-                ),
-            ))
+            ui.label("AF:");
+            elements::slide_switch_selector(ui, self.autogo.follow.mode_mut(), &MODES);
+            ui.label("ATC:");
+            elements::slide_switch_selector(ui, self.autogo.timecode.mode_mut(), &MODES);
+            ui.label("Safety:");
+            elements::slide_switch_selector(
+                ui,
+                &mut self.op_mode,
+                &[OpMode::Edit, OpMode::Demo, OpMode::Live],
+            );
         });
     }
     fn global_settings_bar(&mut self, ui: &mut egui::Ui) {
@@ -299,8 +326,7 @@ impl TekstApp {
         let now = ui.ctx().input(|i| i.time);
 
         let base_color = self
-            .selected_cue()
-            .with_global_style(self.global_style)
+            .selected_cue_with_global()
             .text_color
             .unwrap_or_default()
             .to_egui_color();
@@ -321,7 +347,7 @@ impl TekstApp {
             }
         }
 
-        egui::ProgressBar::new(1.0 - self.autogo.progress(&self.selected_cue()))
+        egui::ProgressBar::new(1.0 - self.autogo.progress(&self.selected_cue_with_global()))
             .fill(color)
             .corner_radius(10.0)
             .ui(ui);
@@ -380,7 +406,7 @@ impl eframe::App for TekstApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         self.file_dialog.update(ctx);
         self.handle_keybinds();
-        if self.autogo.requests_go(&self.selected_cue()) {
+        if self.autogo.requests_go(&self.selected_cue_with_global()) {
             self.go();
         }
         self.error_log.update(self.opaque_time());
@@ -425,55 +451,74 @@ impl eframe::App for TekstApp {
                         ui.ctx().send_viewport_cmd(egui::ViewportCommand::Close);
                     }
                 });
-                ui.menu_button("Timecode", |ui| {
-                    ui.menu_button("Framerate", |ui| {
-                        for (name, fr) in [
-                            ("23.976", FrameRate::Fps23976),
-                            ("24", FrameRate::Fps24),
-                            ("25", FrameRate::Fps25),
-                            ("29.97 (DF)", FrameRate::Fps2997DF),
-                            ("29.97 (NDF)", FrameRate::Fps2997NDF),
-                            ("30", FrameRate::Fps30),
-                        ] {
-                            if ui
-                                .selectable_label(
-                                    self.autogo.timecode.timecode_reader.frame_rate() == fr,
-                                    name,
-                                )
-                                .clicked()
-                            {
-                                self.autogo.timecode.timecode_reader.set_frame_rate(fr);
-                            };
-                        }
-                    });
-                    ui.menu_button("Input Device", |ui| {
-                        if ui.button("Reload").clicked() {
-                            self.autogo
+                ui.menu_button(
+                    RichText::new(
+                        if let Some(time) = self.autogo.timecode.timecode_reader.timecode() {
+                            time.to_string()
+                        } else {
+                            "NO LTC FOUND".to_string()
+                        },
+                    )
+                    .monospace()
+                    .color(
+                        if self.autogo.timecode.timecode_reader.confidence() > 0.8 {
+                            Color32::GREEN
+                        } else {
+                            Color32::ORANGE
+                        },
+                    ),
+                    |ui| {
+                        ui.menu_button("Framerate", |ui| {
+                            for (name, fr) in [
+                                ("23.976", FrameRate::Fps23976),
+                                ("24", FrameRate::Fps24),
+                                ("25", FrameRate::Fps25),
+                                ("29.97 (DF)", FrameRate::Fps2997DF),
+                                ("29.97 (NDF)", FrameRate::Fps2997NDF),
+                                ("30", FrameRate::Fps30),
+                            ] {
+                                if ui
+                                    .selectable_label(
+                                        self.autogo.timecode.timecode_reader.frame_rate() == fr,
+                                        name,
+                                    )
+                                    .clicked()
+                                {
+                                    self.autogo.timecode.timecode_reader.set_frame_rate(fr);
+                                };
+                            }
+                        });
+                        ui.menu_button("Input Device", |ui| {
+                            if ui.button("Reload").clicked() {
+                                self.autogo
+                                    .timecode
+                                    .timecode_reader
+                                    .reload_available_devices();
+                            }
+                            ui.separator();
+                            let devices = self
+                                .autogo
                                 .timecode
                                 .timecode_reader
-                                .reload_available_devices();
-                        }
-                        ui.separator();
-                        let devices = self
-                            .autogo
-                            .timecode
-                            .timecode_reader
-                            .available_devices()
-                            .to_owned();
-                        for (i, device) in devices.iter().enumerate() {
-                            if ui
-                                .selectable_label(
-                                    self.autogo.timecode.timecode_reader.selected_device_idx()
-                                        == Some(i),
-                                    device,
-                                )
-                                .clicked()
-                            {
-                                self.autogo.timecode.timecode_reader.start(i);
+                                .available_devices()
+                                .to_owned();
+                            for (i, device) in devices.iter().enumerate() {
+                                if ui
+                                    .selectable_label(
+                                        self.autogo.timecode.timecode_reader.selected_device_idx()
+                                            == Some(i),
+                                        device,
+                                    )
+                                    .clicked()
+                                {
+                                    self.autogo.timecode.timecode_reader.start(i);
+                                }
                             }
-                        }
-                    });
-                });
+                        });
+                    },
+                );
+
+                ui.monospace(format!("{:02.3} s", self.autogo.follow.elapsed()));
 
                 elements::ip_address_entry(ui, &mut self.network_writer.config_mut().addr);
                 ui.add_space(16.0);
@@ -513,7 +558,7 @@ impl eframe::App for TekstApp {
                     render_screen_preview(ui, &self.live_cue, false);
                     self.go_flasher(ui);
                     ui.heading("DISPLAY PREVIEW");
-                    render_screen_preview(ui, &self.selected_cue(), true);
+                    render_screen_preview(ui, &self.selected_cue_with_global(), true);
                 });
                 ui.separator();
                 ui.vertical(|ui| {

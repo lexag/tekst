@@ -1,5 +1,6 @@
 use crate::{app::TekstApp, cue::Cue, timecode::TimecodeReader};
 use egui::Context;
+use std::fmt::Display;
 
 pub trait AutoGo {
     fn time_until_go(&self, cue: &Cue) -> f64;
@@ -16,13 +17,24 @@ pub trait AutoGo {
     fn go_happened(&mut self, cue: &mut Cue);
 }
 
-#[derive(PartialEq, Eq, Debug)]
+#[derive(serde::Deserialize, serde::Serialize, PartialEq, Eq, Debug, Clone, Copy)]
 pub enum AutoGoOpMode {
-    Detached,
-    Attached,
+    Off,
+    Ctrl,
     Learn,
 }
 
+impl Display for AutoGoOpMode {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            AutoGoOpMode::Off => write!(f, "Off"),
+            AutoGoOpMode::Ctrl => write!(f, "Ctrl"),
+            AutoGoOpMode::Learn => write!(f, "Learn"),
+        }
+    }
+}
+
+#[derive(serde::Deserialize, serde::Serialize)]
 pub struct AutoGoConsolidator {
     pub timecode: AutoTimecode,
     pub follow: AutoFollow,
@@ -56,13 +68,20 @@ impl AutoGoConsolidator {
         self.timecode.requests_go(cue) || self.follow.requests_go(cue)
     }
 
-    pub fn go_happened(&mut self, cue: &mut Cue) {
-        self.timecode.go_happened(cue);
-        self.follow.go_happened(cue);
+    pub fn go_happened(&mut self, mut cue: Cue) -> Cue {
+        self.timecode.go_happened(&mut cue);
+        self.follow.go_happened(&mut cue);
+        cue
+    }
+
+    pub fn dry_go_happened(&mut self) {
+        let _ = self.go_happened(Cue::default());
     }
 }
 
+#[derive(serde::Deserialize, serde::Serialize)]
 pub struct AutoTimecode {
+    #[serde(skip)]
     pub timecode_reader: TimecodeReader,
     pub mode: AutoGoOpMode,
 }
@@ -90,14 +109,17 @@ impl AutoGo for AutoTimecode {
 impl AutoTimecode {
     pub fn new() -> Self {
         Self {
-            mode: AutoGoOpMode::Detached,
+            mode: AutoGoOpMode::Off,
             timecode_reader: TimecodeReader::new(),
         }
     }
 }
 
+#[derive(serde::Deserialize, serde::Serialize)]
 pub struct AutoFollow {
+    #[serde(skip)]
     app_ctx: Context,
+    #[serde(skip)]
     last_go_time: f64,
     mode: AutoGoOpMode,
 }
@@ -107,11 +129,11 @@ impl AutoFollow {
         Self {
             app_ctx,
             last_go_time: 0.0,
-            mode: AutoGoOpMode::Detached,
+            mode: AutoGoOpMode::Off,
         }
     }
 
-    fn elapsed(&self) -> f64 {
+    pub fn elapsed(&self) -> f64 {
         let now = self.app_ctx.input(|i| i.time);
         now - self.last_go_time
     }
@@ -119,7 +141,7 @@ impl AutoFollow {
 
 impl AutoGo for AutoFollow {
     fn time_until_go(&self, cue: &Cue) -> f64 {
-        if self.mode == AutoGoOpMode::Attached
+        if self.mode == AutoGoOpMode::Ctrl
             && let Some(ms) = cue.autogo_delay_ms
         {
             let s = ms as f64 / 1000.0;
@@ -130,7 +152,7 @@ impl AutoGo for AutoFollow {
 
     fn max_time_until_go(&self, cue: &Cue) -> f64 {
         if let Some(ms) = cue.autogo_delay_ms {
-            return ms as f64 * 1000.0;
+            return ms as f64 / 1000.0;
         }
         f64::INFINITY
     }
