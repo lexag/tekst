@@ -1,16 +1,18 @@
 use crate::{app::TekstApp, cue::Cue, timecode::TimecodeReader};
 use egui::Context;
-use std::fmt::Display;
+use std::{fmt::Display, ops::Sub};
 
 pub trait AutoGo {
     fn time_until_go(&self, cue: &Cue) -> f64;
     fn max_time_until_go(&self, cue: &Cue) -> f64;
 
     fn progress(&self, cue: &Cue) -> f32 {
-        1.0 - (self.time_until_go(cue) / self.max_time_until_go(cue)) as f32
+        1.0 - (self.time_until_go(cue) / self.max_time_until_go(cue)).clamp(0.0, 1.0) as f32
     }
 
-    fn requests_go(&self, cue: &Cue) -> bool;
+    fn requests_go(&self, cue: &Cue) -> bool {
+        self.time_until_go(cue) <= 0.0
+    }
 
     fn mode_mut(&mut self) -> &mut AutoGoOpMode;
 
@@ -88,21 +90,29 @@ pub struct AutoTimecode {
 
 impl AutoGo for AutoTimecode {
     fn time_until_go(&self, cue: &Cue) -> f64 {
+        if self.mode == AutoGoOpMode::Ctrl
+            && let Some(tc) = self.timecode_reader.timecode()
+            && let Some(cue_tc) = cue.autogo_timecode
+        {
+            return cue_tc.to_seconds_f64() - tc.to_seconds_f64();
+        }
         f64::INFINITY
-    }
-
-    fn requests_go(&self, cue: &Cue) -> bool {
-        false
     }
 
     fn mode_mut(&mut self) -> &mut AutoGoOpMode {
         &mut self.mode
     }
 
-    fn go_happened(&mut self, cue: &mut Cue) {}
+    fn go_happened(&mut self, cue: &mut Cue) {
+        if self.mode == AutoGoOpMode::Learn
+            && let Some(tc) = self.timecode_reader.timecode()
+        {
+            cue.autogo_timecode = Some(tc);
+        }
+    }
 
     fn max_time_until_go(&self, cue: &Cue) -> f64 {
-        f64::INFINITY
+        10.0
     }
 }
 
@@ -155,13 +165,6 @@ impl AutoGo for AutoFollow {
             return ms as f64 / 1000.0;
         }
         f64::INFINITY
-    }
-
-    fn requests_go(&self, cue: &Cue) -> bool {
-        if self.time_until_go(cue) <= 0.0 {
-            return true;
-        }
-        false
     }
 
     fn mode_mut(&mut self) -> &mut AutoGoOpMode {

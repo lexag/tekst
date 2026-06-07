@@ -2,6 +2,7 @@ use crate::{
     DISPLAY_NUM_LINES,
     esds::{Color, Font, TextAlign},
 };
+use oximedia::timecode::Timecode;
 
 // fixme: impl actual type for this
 type SMPTETimestamp = u8;
@@ -27,7 +28,7 @@ pub struct Cue {
     pub text_align: Option<TextAlign>,
     pub text_font: Option<Font>,
     pub autogo_delay_ms: Option<u16>,
-    pub autogo_timecode: Option<SMPTETimestamp>,
+    pub autogo_timecode: Option<Timecode>,
     pub next_ident: Option<String>,
 }
 

@@ -40,7 +40,6 @@ pub enum PatchPointer {
 
 #[derive(serde::Deserialize, serde::Serialize, Default, Debug, Copy, Clone, PartialEq)]
 pub enum OpMode {
-    Edit,
     #[default]
     Demo,
     Live,
@@ -49,7 +48,6 @@ pub enum OpMode {
 impl Display for OpMode {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            OpMode::Edit => write!(f, "Edit"),
             OpMode::Demo => write!(f, "Demo"),
             OpMode::Live => write!(f, "Live"),
         }
@@ -232,6 +230,12 @@ impl TekstApp {
         self.file_dialog.pick_file();
     }
 
+    pub fn save_sequence(&self, sequence_idx: usize) {
+        if let Some(seq) = &self.sequences[sequence_idx] {
+            seq.save_to_path(seq.path.clone());
+        }
+    }
+
     fn sequence_button(&mut self, ui: &mut egui::Ui, i: usize) {
         let sequence = &self.sequences[i];
         let button_response = if let Some(seq) = sequence {
@@ -280,11 +284,7 @@ impl TekstApp {
             ui.label("ATC:");
             elements::slide_switch_selector(ui, self.autogo.timecode.mode_mut(), &MODES);
             ui.label("Safety:");
-            elements::slide_switch_selector(
-                ui,
-                &mut self.op_mode,
-                &[OpMode::Edit, OpMode::Demo, OpMode::Live],
-            );
+            elements::slide_switch_selector(ui, &mut self.op_mode, &[OpMode::Demo, OpMode::Live]);
         });
     }
     fn global_settings_bar(&mut self, ui: &mut egui::Ui) {
@@ -436,6 +436,11 @@ impl eframe::App for TekstApp {
 
             egui::MenuBar::new().ui(ui, |ui| {
                 ui.menu_button("File", |ui| {
+                    if ui.button("Save all sequences").clicked() {
+                        for i in 0..self.sequences.len() {
+                            self.save_sequence(i);
+                        }
+                    }
                     if ui.button("Write demo sequence file").clicked() {
                         SequenceSlot {
                             path: "".into(),
