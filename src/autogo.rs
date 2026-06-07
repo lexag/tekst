@@ -93,6 +93,7 @@ impl AutoGo for AutoTimecode {
         if self.mode == AutoGoOpMode::Ctrl
             && let Some(tc) = self.timecode_reader.timecode()
             && let Some(cue_tc) = cue.autogo_timecode
+            && self.timecode_reader.confidence() > 0.75
         {
             return cue_tc.to_seconds_f64() - tc.to_seconds_f64();
         }

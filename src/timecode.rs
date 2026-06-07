@@ -1,10 +1,9 @@
-use oximedia::timecode::{
-    FrameRate, Timecode, TimecodeError,
-    ltc::{LtcReader, LtcReaderConfig},
-};
+use crate::ltc::readwrite::{LtcReader, LtcReaderConfig};
+use crate::ltc::{FrameRate, Timecode, TimecodeError};
 use rodio::microphone::{Input, InputConfig, MicrophoneBuilder};
 use rodio::{DeviceTrait, microphone::Microphone};
 use std::{
+    ops::Sub,
     sync::mpsc::{self, Receiver, Sender},
     thread::{self, JoinHandle},
 };
@@ -44,6 +43,7 @@ impl TimecodeReader {
     }
 
     pub fn update(&mut self) -> Result<(), TimecodeError> {
+        self.confidence = self.confidence.sub(0.01).max(0.0);
         while let Ok(res) = self.recv.try_recv() {
             match res {
                 Ok((confidence, time)) => {

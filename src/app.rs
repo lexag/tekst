@@ -6,6 +6,7 @@ use crate::{
     errorlog::ErrorLog,
     esds::TextAlign,
     hotkeys::{self, ShortcutMap, all_default_shortcuts},
+    ltc::FrameRate,
     network::NetworkWriter,
     sequence::{Sequence, SequenceSlot},
     timecode::TimecodeReader,
@@ -14,7 +15,6 @@ use egui::{
     Align, Align2, Color32, Context, FontId, Layout, Pos2, Rect, RichText, Sense, TextStyle, Widget,
 };
 use egui_file_dialog::FileDialog;
-use oximedia::timecode::FrameRate;
 use std::{f32, fmt::Display};
 
 #[derive(
@@ -126,10 +126,34 @@ impl TekstApp {
         };
         a.ctx = cc.egui_ctx.clone();
         a.file_dialog = FileDialog::new();
+        let mut errs_to_log = vec![];
         for sequence in &mut a.sequences {
             if let Some(seq) = sequence.as_mut() {
-                *seq = SequenceSlot::load_from_path(seq.path.clone()).unwrap_or_default();
+                let res = SequenceSlot::load_from_path(seq.path.clone());
+                match res {
+                    Ok(s) => {
+                        *seq = if s.sequence.cues.is_empty() {
+                            SequenceSlot {
+                                path: s.path,
+                                sequence: Sequence::example(),
+                            }
+                        } else {
+                            s
+                        }
+                    }
+                    Err(e) => {
+                        errs_to_log.push(format!("{}", e));
+                        *seq = SequenceSlot {
+                            path: seq.path.clone(),
+                            sequence: Sequence::example(),
+                        }
+                    }
+                }
             }
+        }
+
+        for err in errs_to_log {
+            a.log_error(err);
         }
         a.autogo = AutoGoConsolidator::new(a.ctx.clone());
         a.live_cue = Cue {
@@ -230,9 +254,11 @@ impl TekstApp {
         self.file_dialog.pick_file();
     }
 
-    pub fn save_sequence(&self, sequence_idx: usize) {
+    pub fn save_sequence(&mut self, sequence_idx: usize) {
         if let Some(seq) = &self.sequences[sequence_idx] {
-            seq.save_to_path(seq.path.clone());
+            if let Err(e) = seq.save_to_path(seq.path.clone()) {
+                self.log_error(format!("{}", e));
+            };
         }
     }
 
@@ -422,7 +448,11 @@ impl eframe::App for TekstApp {
         if let Some(path) = self.file_dialog.take_picked() {
             match self.file_pick_pointer {
                 PatchPointer::Sequence(sequence_idx) => {
-                    self.sequences[sequence_idx] = SequenceSlot::load_from_path(path);
+                    let res = SequenceSlot::load_from_path(path);
+                    match res {
+                        Ok(s) => self.sequences[sequence_idx] = Some(s),
+                        Err(e) => self.log_error(format!("{}", e)),
+                    }
                 }
                 _ => {}
             }

@@ -1,8 +1,8 @@
 use crate::{
     DISPLAY_NUM_LINES,
     esds::{Color, Font, TextAlign},
+    ltc::Timecode,
 };
-use oximedia::timecode::Timecode;
 
 // fixme: impl actual type for this
 type SMPTETimestamp = u8;
@@ -28,6 +28,10 @@ pub struct Cue {
     pub text_align: Option<TextAlign>,
     pub text_font: Option<Font>,
     pub autogo_delay_ms: Option<u16>,
+    #[serde(
+        serialize_with = "serialize_nested",
+        deserialize_with = "deserialize_nested"
+    )]
     pub autogo_timecode: Option<Timecode>,
     pub next_ident: Option<String>,
 }
@@ -94,4 +98,56 @@ pub struct GlobalStyle {
     pub text_color: Color,
     pub text_align: TextAlign,
     pub text_font: Font,
+}
+
+use serde::{Deserialize, Deserializer, Serializer};
+
+fn serialize_nested<S>(value: &Option<Timecode>, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: Serializer,
+{
+    let s = match value {
+        Some(tc) => format!(
+            "{}:{}:{}:{}:{}:{}:{}",
+            tc.hours,
+            tc.minutes,
+            tc.seconds,
+            tc.frames,
+            tc.frame_rate.fps,
+            tc.frame_rate.drop_frame,
+            tc.user_bits
+        ),
+        None => String::new(),
+    };
+
+    serializer.serialize_str(&s)
+}
+
+fn deserialize_nested<'de, D>(deserializer: D) -> Result<Option<Timecode>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    fn tc_construct(mut comps: std::str::Split<'_, char>) -> Option<Timecode> {
+        Some(Timecode::from_raw_fields(
+            comps.next()?.parse().ok()?,
+            comps.next()?.parse().ok()?,
+            comps.next()?.parse().ok()?,
+            comps.next()?.parse().ok()?,
+            comps.next()?.parse().ok()?,
+            comps.next()?.parse().ok()?,
+            comps.next()?.parse().ok()?,
+        ))
+    }
+
+    let s: String = String::deserialize(deserializer)?;
+    if s.is_empty() {
+        return Ok(None);
+    }
+
+    let comps = s.split(':');
+
+    match tc_construct(comps) {
+        Some(tc) => Ok(Some(tc)),
+        None => Err(serde::de::Error::custom("invalid timecode")),
+    }
 }

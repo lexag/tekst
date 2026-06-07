@@ -1,4 +1,5 @@
-use crate::cue::Cue;
+use crate::{cue::Cue, ltc::Timecode};
+use serde::ser::Error;
 use std::path::PathBuf;
 
 #[derive(serde::Deserialize, serde::Serialize, Default, Debug)]
@@ -36,7 +37,7 @@ pub struct SequenceSlot {
 }
 
 impl SequenceSlot {
-    pub fn load_from_path(path: PathBuf) -> Option<Self> {
+    pub fn load_from_path(path: PathBuf) -> Result<Self, csv::Error> {
         let mut slot = Self {
             path: path.clone(),
             sequence: Sequence {
@@ -46,7 +47,7 @@ impl SequenceSlot {
                     .unwrap_or_default()
                     .to_os_string()
                     .into_string()
-                    .ok()?,
+                    .map_err(|e| csv::Error::custom("invalid path"))?,
                 cue_pointer: 0,
                 cues: vec![],
             },
@@ -54,27 +55,26 @@ impl SequenceSlot {
 
         let mut rdr = csv::ReaderBuilder::new()
             .has_headers(false)
-            .from_path(path)
-            .ok()?;
+            .from_path(path)?;
         for result in rdr.deserialize() {
             if let Ok(cue) = result {
                 slot.sequence.cues.push(cue);
             } else {
-                panic!("Failed loading: {}", result.unwrap_err())
+                return Err(result.unwrap_err());
             }
         }
-        Some(slot)
+        Ok(slot)
     }
 
-    pub fn save_to_path(&self, path: PathBuf) -> Option<()> {
+    pub fn save_to_path(&self, path: PathBuf) -> Result<(), csv::Error> {
         let mut wtr = csv::WriterBuilder::new()
             .has_headers(false)
             .from_path(path)
-            .ok()?;
+            .map_err(|e| csv::Error::custom("invalid path"))?;
         for cue in &self.sequence.cues {
-            wtr.serialize(cue).unwrap();
+            wtr.serialize(cue);
         }
-        wtr.flush().ok()?;
-        Some(())
+        wtr.flush()?;
+        Ok(())
     }
 }
