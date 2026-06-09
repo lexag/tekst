@@ -86,6 +86,7 @@ pub fn exec_action(app: &mut TekstApp, action_id: ActionID) {
             if let PatchPointer::Sequence(i) = pointer {
                 app.selected_sequence_idx = i;
             }
+            app.autogo.dry_go_happened();
         }
         ActionID::Go => app.go(),
         ActionID::SelectCueUp(num) => {

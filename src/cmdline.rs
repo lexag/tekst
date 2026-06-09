@@ -1,6 +1,6 @@
 use crate::{
     app::{PatchPointer, TekstApp},
-    esds::{Color, TextAlign},
+    esds::{Color, FadeSpeed, TextAlign},
 };
 use std::{fmt::Display, slice::Iter};
 
@@ -115,7 +115,8 @@ impl CommandLine {
         match ident_type {
             CommandLineToken::Cue => {
                 if let Some(seq) = app.selected_sequence() {
-                    seq.sequence.goto_ident(ident)
+                    seq.sequence.goto_ident(ident);
+                    app.autogo.dry_go_happened();
                 }
             }
             CommandLineToken::Seq => {
@@ -124,18 +125,21 @@ impl CommandLine {
                 }
                 app.patch_pointer = PatchPointer::Sequence(ident_parsed? - 1);
                 app.selected_sequence_idx = ident_parsed? - 1;
+                app.autogo.dry_go_happened();
             }
             CommandLineToken::Art => {
                 if !(1..=4).contains(&ident_parsed?) {
                     return None;
                 }
                 app.patch_pointer = PatchPointer::PatchImageCue(ident_parsed? - 1);
+                app.autogo.dry_go_happened();
             }
             CommandLineToken::PatchCue => {
                 if !(1..=4).contains(&ident_parsed?) {
                     return None;
                 }
                 app.patch_pointer = PatchPointer::PatchCue(ident_parsed? - 1);
+                app.autogo.dry_go_happened();
             }
             _ => return Some(false),
         }
@@ -176,7 +180,7 @@ impl CommandLine {
                             it.next()?
                             && *c < 10
                         {
-                            *c
+                            FadeSpeed::from(*c)
                         } else {
                             return None;
                         }
@@ -235,7 +239,7 @@ impl CommandLine {
                         cue.fade_speed = if let CommandLineToken::ValueVal(c) = val_token
                             && *c < 10
                         {
-                            Some(*c)
+                            Some(FadeSpeed::from(*c))
                         } else if *val_token == CommandLineToken::Parent {
                             None
                         } else {

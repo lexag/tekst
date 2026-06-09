@@ -56,6 +56,27 @@ impl Display for OpMode {
         }
     }
 }
+
+impl InlineWidgetAutoEnum for OpMode {
+    fn options() -> Vec<Self>
+    where
+        Self: Sized + Display,
+    {
+        vec![Self::Demo, Self::Live]
+    }
+
+    fn color(&self) -> Option<Color32> {
+        match self {
+            OpMode::Demo => Some(ks_common_ui::style::WARNING_COLOR),
+            OpMode::Live => Some(ks_common_ui::style::ACCENT_COLOR),
+        }
+    }
+
+    fn text(&self) -> Option<String> {
+        Some(self.to_string().to_uppercase())
+    }
+}
+
 /// We derive Deserialize/Serialize so we can persist app state on shutdown.
 #[derive(serde::Deserialize, serde::Serialize)]
 #[serde(default)] // if we add new fields, give them default values when deserializing old state
@@ -304,34 +325,28 @@ impl TekstApp {
         });
     }
 
-    fn follow_settings_bar(&mut self, ui: &mut egui::Ui) {
-        const MODES: [AutoGoOpMode; 3] =
-            [AutoGoOpMode::Off, AutoGoOpMode::Ctrl, AutoGoOpMode::Learn];
-        ui.horizontal(|ui| {
-            ui.checkbox(&mut self.autoscroll, "Autoscroll");
-            ui.label("AF:");
-            elements::slide_switch_selector(ui, self.autogo.follow.mode_mut(), &MODES);
-            ui.label("ATC:");
-            elements::slide_switch_selector(ui, self.autogo.timecode.mode_mut(), &MODES);
-            ui.label("Safety:");
-            elements::slide_switch_selector(ui, &mut self.op_mode, &[OpMode::Demo, OpMode::Live]);
-        });
-    }
     fn global_settings_bar(&mut self, ui: &mut egui::Ui) {
-        ui.horizontal(|ui| {
-            ui.label("Global Brightness:");
-            egui::DragValue::new(&mut self.global_style.brightness).ui(ui);
-            ui.label("Global Fade:");
-            egui::DragValue::new(&mut self.global_style.fade_speed)
-                .range(0..=9)
-                .speed(0.02)
-                .ui(ui);
-            ui.label("Global Font:");
-            egui::DragValue::new(&mut self.global_style.text_font).ui(ui);
-            ui.label("Global Color:");
-            self.global_style.text_color.ui_selector(ui);
-            ui.label("Global Align:");
-            self.global_style.text_align.ui_selector(ui);
+        egui::Grid::new("global-settings-bar").show(ui, |ui| {
+            ui.monospace("SCROLL");
+            ui.monospace("BRIGHT");
+            ui.monospace("FADE");
+            ui.monospace("FONT");
+            ui.monospace("COLOR");
+            ui.monospace("ALIGN");
+            ui.end_row();
+
+            self.autoscroll.inline_widget(ui);
+            self.global_style
+                .brightness
+                .clone()
+                .inline_widget_menu(ui, |ui| {
+                    self.global_style.brightness.draw_configuration(ui);
+                });
+
+            self.global_style.fade_speed.autoenum_inline_widget_menu(ui);
+            self.global_style.text_font.autoenum_inline_widget_menu(ui);
+            self.global_style.text_color.autoenum_inline_widget_menu(ui);
+            self.global_style.text_align.autoenum_inline_widget_menu(ui);
         });
     }
 
@@ -495,6 +510,7 @@ impl eframe::App for TekstApp {
                     ui.monospace("DISPLAY IP");
                     ui.monospace("AFW");
                     ui.monospace("ATC");
+                    ui.monospace("MODE");
 
                     ui.end_row();
 
@@ -531,9 +547,8 @@ impl eframe::App for TekstApp {
                         .timecode
                         .mode_mut()
                         .autoenum_inline_widget_menu(ui);
+                    self.op_mode.autoenum_inline_widget_menu(ui);
                 });
-
-                ui.add_space(16.0);
 
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     powered_by_egui_and_eframe(ui);
@@ -551,13 +566,9 @@ impl eframe::App for TekstApp {
             .resizable(false)
             .exact_width(960.0)
             .show(ctx, |ui| {
-                ui.vertical(|ui| {
-                    self.follow_settings_bar(ui);
-                    ui.separator();
-                    self.global_settings_bar(ui);
-                    ui.separator();
-                    cuetable::cue_table(self, ui);
-                });
+                self.global_settings_bar(ui);
+                ui.separator();
+                cuetable::cue_table(self, ui);
             });
 
         egui::CentralPanel::default().show(ctx, |ui| {

@@ -1,6 +1,6 @@
 use crate::{
     DISPLAY_NUM_LINES,
-    esds::{Color, Font, TextAlign},
+    esds::{Color, FadeSpeed, Font, TextAlign},
 };
 
 // fixme: impl actual type for this
@@ -22,7 +22,7 @@ pub struct Cue {
     pub ident: String,
     pub text: [String; DISPLAY_NUM_LINES],
     pub brightness: Option<u8>,
-    pub fade_speed: Option<u8>,
+    pub fade_speed: Option<FadeSpeed>,
     pub text_color: Option<Color>,
     pub text_align: Option<TextAlign>,
     pub text_font: Option<Font>,
@@ -63,14 +63,18 @@ impl Cue {
         p.extend_from_slice(&to_ahex(self.brightness.unwrap_or_default(), 2));
         p.extend_from_slice(&[0x00, 0x00]);
         p.extend_from_slice(&to_ahex(
-            if self.fade_speed > Some(1) { 0xF } else { 0x1 },
+            if self.fade_speed != Some(FadeSpeed::NoFade) {
+                0xF
+            } else {
+                0x1
+            },
             1,
         ));
-        p.extend_from_slice(&to_ahex(self.fade_speed.unwrap_or_default(), 1));
+        p.extend_from_slice(&to_ahex(self.fade_speed.unwrap_or_default() as u8, 1));
         p.extend_from_slice(&[0x00, 0x00]);
         p.extend_from_slice(&[0x00, 0x00, 0x00, 0x00]);
         p.extend_from_slice(&[0x1b, 0x0e]);
-        p.extend_from_slice(&to_ahex(self.text_font.unwrap_or_default(), 2));
+        p.extend_from_slice(&to_ahex(self.text_font.unwrap_or_default() as u8, 2));
         p.extend_from_slice(&to_ahex(self.text_color.unwrap_or_default() as u8, 1));
         p.extend_from_slice(&to_ahex(self.text_align.unwrap_or_default() as u8, 1));
         p.extend_from_slice(&[0x30]);
@@ -93,7 +97,7 @@ pub struct ImageCue {
 #[derive(serde::Deserialize, serde::Serialize, Default, Debug, Clone, Copy)]
 pub struct GlobalStyle {
     pub brightness: u8,
-    pub fade_speed: u8,
+    pub fade_speed: FadeSpeed,
     pub text_color: Color,
     pub text_align: TextAlign,
     pub text_font: Font,
