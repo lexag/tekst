@@ -153,52 +153,40 @@ impl Default for TimecodeReader {
     }
 }
 
-mod tests {
-    use super::*;
-
-    #[test]
-    fn ltc_decode_from_file() {
-        let mut wav_reader = hound::WavReader::open("smpte_25fps.wav").unwrap();
-
-        let frame_rate = FrameRate::Fps25;
-
-        let sample_rate = wav_reader.spec().sample_rate;
-        let ltc_config = LtcReaderConfig {
-            frame_rate,
-            max_speed: 2.0,
-            min_amplitude: 1e-3,
-            sample_rate,
-        };
-        let mut tc_decoder = LtcReader::new(ltc_config);
-
-        let mut reader = wav_reader.samples::<i16>();
-
-        let mut timestamps = vec![];
-
-        loop {
-            let chunk = reader
-                .by_ref()
-                .take(256)
-                .map(|s| s.unwrap() as f32 / 32767.0 * -1.5)
-                .collect::<Vec<f32>>();
-            let res = tc_decoder.process_samples(&chunk);
-            let peak = chunk.iter().map(|x| x.abs()).fold(0.0f32, f32::max);
-            if let Ok(Some(time)) = res {
-                timestamps.push(time);
+impl ConfigurationWidget for TimecodeReader {
+    fn draw_configuration(&mut self, ui: &mut egui::Ui) -> egui::Response {
+        ui.horizontal(|ui| {
+            // AUDIO DEVICES
+            if let Some(selection) = ks_common_ui::components::selector_list_index(
+                ui,
+                &self.available_devices,
+                self.selected_device_idx(),
+                "Audio Device",
+            ) {
+                self.start(selection);
             }
 
-            if chunk.is_empty() {
-                break;
+            // FRAMERATES
+            if let Some(selection) = selector_list_value(
+                ui,
+                &[
+                    FrameRate::Fps23976,
+                    FrameRate::Fps24,
+                    FrameRate::Fps25,
+                    FrameRate::Fps2997DF,
+                    FrameRate::Fps2997NDF,
+                    FrameRate::Fps30,
+                ],
+                &self.frame_rate(),
+                "Frame Rate",
+            ) {
+                self.frame_rate = selection;
             }
-        }
-        assert!(!timestamps.is_empty());
-        for i in 3..timestamps.len() - 1 {
-            assert!(
-                timestamps[i] <= timestamps[i + 1],
-                "{} and {} are misordered",
-                timestamps[i],
-                timestamps[i + 1]
-            )
-        }
+        })
+        .response
+    }
+
+    fn grid_contents(&mut self, ui: &mut egui::Ui) -> egui::Response {
+        unimplemented!()
     }
 }

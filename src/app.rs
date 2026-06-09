@@ -485,79 +485,35 @@ impl eframe::App for TekstApp {
                         ui.ctx().send_viewport_cmd(egui::ViewportCommand::Close);
                     }
                 });
-                ui.menu_button(
-                    RichText::new(
-                        if let Some(time) = self.autogo.timecode.timecode_reader.timecode() {
-                            time.to_string()
-                        } else {
-                            "NO LTC FOUND".to_string()
-                        },
-                    )
-                    .monospace()
-                    .color(
-                        if self.autogo.timecode.timecode_reader.confidence() > 0.8 {
-                            Color32::GREEN
-                        } else {
-                            Color32::ORANGE
-                        },
-                    ),
-                    |ui| {
-                        ui.menu_button("Framerate", |ui| {
-                            for (name, fr) in [
-                                ("23.976", FrameRate::Fps23976),
-                                ("24", FrameRate::Fps24),
-                                ("25", FrameRate::Fps25),
-                                ("29.97 (DF)", FrameRate::Fps2997DF),
-                                ("29.97 (NDF)", FrameRate::Fps2997NDF),
-                                ("30", FrameRate::Fps30),
-                            ] {
-                                if ui
-                                    .selectable_label(
-                                        self.autogo.timecode.timecode_reader.frame_rate() == fr,
-                                        name,
-                                    )
-                                    .clicked()
-                                {
-                                    self.autogo.timecode.timecode_reader.set_frame_rate(fr);
-                                };
-                            }
-                        });
-                        ui.menu_button("Input Device", |ui| {
-                            if ui.button("Reload").clicked() {
-                                self.autogo
-                                    .timecode
-                                    .timecode_reader
-                                    .reload_available_devices();
-                            }
-                            ui.separator();
-                            let devices = self
-                                .autogo
-                                .timecode
-                                .timecode_reader
-                                .available_devices()
-                                .to_owned();
-                            for (i, device) in devices.iter().enumerate() {
-                                if ui
-                                    .selectable_label(
-                                        self.autogo.timecode.timecode_reader.selected_device_idx()
-                                            == Some(i),
-                                        device,
-                                    )
-                                    .clicked()
-                                {
-                                    self.autogo.timecode.timecode_reader.start(i);
-                                }
-                            }
-                        });
-                    },
-                );
+                egui::Grid::new("upper_statusbar_grid").show(ui, |ui| {
+                    ui.monospace("LTC INPUT");
+                    ui.monospace("LTC DELAY");
+                    ui.monospace("FOLLOW TIME");
+                    ui.monospace("DISPLAY IP");
 
-                ui.monospace(format!("{:02.3} s", self.autogo.follow.elapsed()));
+                    ui.end_row();
 
-                elements::ip_address_entry(ui, &mut self.network_writer.config_mut().addr);
+                    self.autogo
+                        .timecode
+                        .timecode_reader
+                        .timecode()
+                        .inline_widget_menu(ui, |ui| {
+                            self.autogo.timecode.timecode_reader.draw_configuration(ui);
+                        });
+                    self.autogo
+                        .timecode
+                        .offset
+                        .clone()
+                        .inline_widget_menu(ui, |ui| {
+                            self.autogo.timecode.offset.draw_configuration(ui);
+                        });
+
+                    (self.autogo.follow.elapsed() as f32).inline_widget(ui);
+
+                    elements::ip_address_entry(ui, &mut self.network_writer.config_mut().addr);
+                });
+
                 ui.add_space(16.0);
-
-                egui::widgets::global_theme_preference_buttons(ui);
 
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     powered_by_egui_and_eframe(ui);
