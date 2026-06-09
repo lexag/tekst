@@ -14,7 +14,10 @@ use egui::{
 };
 use egui_file_dialog::FileDialog;
 use ks_common_generic::smpte::{FrameRate, Timecode};
-use ks_common_ui::component_interface::{ConfigurationWidget, InlineWidget, InlineWidgetMenu};
+use ks_common_ui::{
+    autoenum::InlineWidgetAutoEnum,
+    component_interface::{ConfigurationWidget, InlineWidget, InlineWidgetMenu},
+};
 use std::{f32, fmt::Display};
 
 #[derive(
@@ -490,6 +493,8 @@ impl eframe::App for TekstApp {
                     ui.monospace("LTC DELAY");
                     ui.monospace("FOLLOW TIME");
                     ui.monospace("DISPLAY IP");
+                    ui.monospace("AFW");
+                    ui.monospace("ATC");
 
                     ui.end_row();
 
@@ -508,9 +513,24 @@ impl eframe::App for TekstApp {
                             self.autogo.timecode.offset.draw_configuration(ui);
                         });
 
-                    (self.autogo.follow.elapsed() as f32).inline_widget(ui);
+                    (self.autogo.follow.elapsed().min(999.999) as f32).inline_widget(ui);
 
-                    elements::ip_address_entry(ui, &mut self.network_writer.config_mut().addr);
+                    self.network_writer
+                        .config_mut()
+                        .addr
+                        .clone()
+                        .inline_widget_menu(ui, |ui| {
+                            self.network_writer.config_mut().addr.draw_configuration(ui);
+                        });
+
+                    self.autogo
+                        .follow
+                        .mode_mut()
+                        .autoenum_inline_widget_menu(ui);
+                    self.autogo
+                        .timecode
+                        .mode_mut()
+                        .autoenum_inline_widget_menu(ui);
                 });
 
                 ui.add_space(16.0);

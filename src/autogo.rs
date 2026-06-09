@@ -1,6 +1,7 @@
 use crate::{app::TekstApp, cue::Cue, timecode::TimecodeReader};
 use egui::Context;
 use ks_common_generic::smpte::{Timecode, TimecodeOffset};
+use ks_common_ui::{autoenum::InlineWidgetAutoEnum, component_interface::InlineWidget};
 use std::{fmt::Display, ops::Sub};
 
 pub trait AutoGo {
@@ -31,8 +32,33 @@ impl Display for AutoGoOpMode {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             AutoGoOpMode::Off => write!(f, "Off"),
-            AutoGoOpMode::Ctrl => write!(f, "Ctrl"),
+            AutoGoOpMode::Ctrl => write!(f, "Control"),
             AutoGoOpMode::Learn => write!(f, "Learn"),
+        }
+    }
+}
+
+impl InlineWidgetAutoEnum for AutoGoOpMode {
+    fn options() -> Vec<Self>
+    where
+        Self: Sized + Display,
+    {
+        vec![Self::Off, Self::Ctrl, Self::Learn]
+    }
+
+    fn color(&self) -> Option<egui::Color32> {
+        match self {
+            AutoGoOpMode::Off => None,
+            AutoGoOpMode::Ctrl => Some(ks_common_ui::style::ACCENT_COLOR),
+            AutoGoOpMode::Learn => Some(ks_common_ui::style::WARNING_COLOR),
+        }
+    }
+
+    fn text(&self) -> Option<String> {
+        match self {
+            AutoGoOpMode::Off => Some("OFF".to_string()),
+            AutoGoOpMode::Ctrl => Some("CTL".to_string()),
+            AutoGoOpMode::Learn => Some("LRN".to_string()),
         }
     }
 }

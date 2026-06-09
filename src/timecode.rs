@@ -186,7 +186,7 @@ impl ConfigurationWidget for TimecodeReader {
         .response
     }
 
-    fn grid_contents(&mut self, ui: &mut egui::Ui) -> egui::Response {
+    fn grid_contents(&mut self, ui: &mut egui::Ui) {
         unimplemented!()
     }
 }
