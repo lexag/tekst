@@ -13,7 +13,6 @@ mod elements;
 mod errorlog;
 mod esds;
 mod hotkeys;
-mod ltc;
 mod network;
 mod sequence;
 mod timecode;

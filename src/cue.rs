@@ -1,7 +1,6 @@
 use crate::{
     DISPLAY_NUM_LINES,
     esds::{Color, Font, TextAlign},
-    ltc::Timecode,
 };
 
 // fixme: impl actual type for this
@@ -100,6 +99,7 @@ pub struct GlobalStyle {
     pub text_font: Font,
 }
 
+use ks_common_generic::smpte::Timecode;
 use serde::{Deserialize, Deserializer, Serializer};
 
 fn serialize_nested<S>(value: &Option<Timecode>, serializer: S) -> Result<S::Ok, S::Error>

@@ -6,15 +6,15 @@ use crate::{
     errorlog::ErrorLog,
     esds::TextAlign,
     hotkeys::{self, ShortcutMap, all_default_shortcuts},
-    ltc::FrameRate,
     network::NetworkWriter,
     sequence::{Sequence, SequenceSlot},
-    timecode::TimecodeReader,
 };
 use egui::{
     Align, Align2, Color32, Context, FontId, Layout, Pos2, Rect, RichText, Sense, TextStyle, Widget,
 };
 use egui_file_dialog::FileDialog;
+use ks_common_generic::smpte::{FrameRate, Timecode};
+use ks_common_ui::component_interface::{ConfigurationWidget, InlineWidget, InlineWidgetMenu};
 use std::{f32, fmt::Display};
 
 #[derive(
@@ -125,6 +125,7 @@ impl TekstApp {
             TekstApp::default()
         };
         a.ctx = cc.egui_ctx.clone();
+        ks_common_ui::style::load_fonts(&mut a.ctx);
         a.file_dialog = FileDialog::new();
         let mut errs_to_log = vec![];
         for sequence in &mut a.sequences {
@@ -351,11 +352,7 @@ impl TekstApp {
     fn go_flasher(&mut self, ui: &mut egui::Ui) {
         let now = ui.ctx().input(|i| i.time);
 
-        let base_color = self
-            .selected_cue_with_global()
-            .text_color
-            .unwrap_or_default()
-            .to_egui_color();
+        let base_color = ks_common_ui::style::ACCENT_COLOR;
 
         let mut color = base_color;
 
@@ -430,6 +427,8 @@ impl eframe::App for TekstApp {
 
     /// Called each time the UI needs repainting, which may be many times per second.
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        ctx.set_style(ks_common_ui::style::style());
+
         self.file_dialog.update(ctx);
         self.handle_keybinds();
         if self.autogo.requests_go(&self.selected_cue_with_global()) {

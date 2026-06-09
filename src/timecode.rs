@@ -1,6 +1,8 @@
-use crate::ltc::readwrite::{LtcReader, LtcReaderConfig};
-use crate::ltc::{FrameRate, Timecode, TimecodeError};
-use rodio::microphone::{Input, InputConfig, MicrophoneBuilder};
+use ks_common_generic::smpte::ltc::{LtcReader, LtcReaderConfig};
+use ks_common_generic::smpte::{FrameRate, Timecode, TimecodeError};
+use ks_common_ui::component_interface::ConfigurationWidget;
+use ks_common_ui::components::selector_list_value;
+use rodio::microphone::{InputConfig, MicrophoneBuilder};
 use rodio::{DeviceTrait, microphone::Microphone};
 use std::{
     ops::Sub,
@@ -63,6 +65,7 @@ impl TimecodeReader {
     }
 
     pub fn reload_available_devices(&mut self) {
+        self.available_devices.clear();
         if let Ok(devices) = rodio::microphone::available_inputs() {
             for device in devices {
                 if let Ok(desc) = device.clone().into_inner().description() {

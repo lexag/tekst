@@ -1,5 +1,6 @@
 use crate::{app::TekstApp, cue::Cue, timecode::TimecodeReader};
 use egui::Context;
+use ks_common_generic::smpte::{Timecode, TimecodeOffset};
 use std::{fmt::Display, ops::Sub};
 
 pub trait AutoGo {
@@ -85,6 +86,7 @@ impl AutoGoConsolidator {
 pub struct AutoTimecode {
     #[serde(skip)]
     pub timecode_reader: TimecodeReader,
+    pub offset: TimecodeOffset,
     pub mode: AutoGoOpMode,
 }
 
@@ -92,10 +94,11 @@ impl AutoGo for AutoTimecode {
     fn time_until_go(&self, cue: &Cue) -> f64 {
         if self.mode == AutoGoOpMode::Ctrl
             && let Some(tc) = self.timecode_reader.timecode()
+            && let Ok(actual_tc) = tc - self.offset
             && let Some(cue_tc) = cue.autogo_timecode
             && self.timecode_reader.confidence() > 0.75
         {
-            return cue_tc.to_seconds_f64() - tc.to_seconds_f64();
+            return cue_tc.to_seconds_f64() - actual_tc.to_seconds_f64();
         }
         f64::INFINITY
     }
@@ -121,6 +124,7 @@ impl AutoTimecode {
     pub fn new() -> Self {
         Self {
             mode: AutoGoOpMode::Off,
+            offset: TimecodeOffset::new(Timecode::default(), false),
             timecode_reader: TimecodeReader::new(),
         }
     }

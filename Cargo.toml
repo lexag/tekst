@@ -13,3 +13,5 @@ egui_table = "0.7.0"
 hound = "3.5.1"
 rodio = "0.22.2"
 serde = { version = "1.0.228", features = ["serde_derive"] }
+ks-common-ui = { path = "../clicks/common/ui" } 
+ks-common-generic = { git = "https://github.com/lexag/ks-common", branch="release/v2.3.0", features = ["serde"] } 
