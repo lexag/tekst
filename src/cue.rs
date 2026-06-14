@@ -46,17 +46,6 @@ impl Cue {
     }
 
     pub fn make_payload(&self) -> Vec<u8> {
-        fn to_ahex(mut val: u8, num_bytes: usize) -> Vec<u8> {
-            let mut out = vec![];
-            while val > 0 {
-                out.push((val & 0xF) + 0x30);
-                val >>= 4;
-            }
-            out.resize(num_bytes, 0x30);
-            out.reverse();
-            out
-        }
-
         let mut p = vec![];
         p.extend_from_slice(&[0x01, 0x31, 0x30, 0x30]);
         p.extend_from_slice(&[0x02, 0x80, 0x81, 0x1a]);
@@ -83,10 +72,29 @@ impl Cue {
         p.extend_from_slice(b"\r\n");
         p.extend(&mut self.text[1].bytes());
         p.extend_from_slice(&[0x00]);
-        p.extend_from_slice(&[0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]);
+        p.extend_from_slice(&[0x00, 0x00]);
+
+        let mut sum = 0;
+        for e in &p {
+            sum += *e as u32;
+        }
+
+        p.extend_from_slice(&to_ahex((sum & 0xFF) as u8, 2));
+        p.extend_from_slice(&to_ahex(((sum >> 2) & 0xFF) as u8, 2));
+        p.extend_from_slice(&[0x00]);
 
         p
     }
+}
+fn to_ahex(mut val: u8, num_bytes: usize) -> Vec<u8> {
+    let mut out = vec![];
+    while val > 0 {
+        out.push((val & 0xF) + 0x30);
+        val >>= 4;
+    }
+    out.resize(num_bytes, 0x30);
+    out.reverse();
+    out
 }
 
 pub struct ImageCue {
@@ -153,5 +161,18 @@ where
     match tc_construct(comps) {
         Some(tc) => Ok(Some(tc)),
         None => Err(serde::de::Error::custom("invalid timecode")),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn ahex() {
+        assert_eq!(to_ahex(0x0, 2), [0x30, 0x30]);
+        assert_eq!(to_ahex(0x5, 2), [0x30, 0x35]);
+        assert_eq!(to_ahex(0xF, 2), [0x30, 0x3F]);
+        assert_eq!(to_ahex(0x32, 2), [0x33, 0x32]);
     }
 }
