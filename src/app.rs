@@ -498,6 +498,15 @@ impl eframe::App for TekstApp {
                                 .join("example_sequence.csv"),
                         );
                     }
+
+                    if ui.button("Send [.] blanking message").clicked() {
+                        self.network_writer
+                            .send_payload(&Cue::default().make_payload_with_data(vec![b'.']));
+                    }
+                    if ui.button("Send [ ] blanking message").clicked() {
+                        self.network_writer
+                            .send_payload(&Cue::default().make_payload_with_data(vec![]));
+                    }
                     if ui.button("Quit").clicked() {
                         ui.ctx().send_viewport_cmd(egui::ViewportCommand::Close);
                     }

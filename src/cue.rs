@@ -45,14 +45,14 @@ impl Cue {
         self
     }
 
-    pub fn make_payload(&self) -> Vec<u8> {
+    pub fn make_payload_with_data(&self, data: Vec<u8>) -> Vec<u8> {
         let mut p = vec![];
         p.extend_from_slice(&[0x01, 0x31, 0x30, 0x30]);
         p.extend_from_slice(&[0x02, 0x80, 0x81, 0x1a]);
         p.extend_from_slice(&to_ahex(self.brightness.unwrap_or_default(), 2));
         p.extend_from_slice(&to_ahex(0x0, 2));
         p.extend_from_slice(&to_ahex(
-            if self.fade_speed != Some(FadeSpeed::NoFade) {
+            if self.fade_speed != Some(FadeSpeed::NoFade) && self.fade_speed.is_some() {
                 0xF
             } else {
                 0x1
@@ -68,9 +68,7 @@ impl Cue {
         p.extend_from_slice(&to_ahex(self.text_align.unwrap_or_default() as u8, 1));
         p.extend_from_slice(&[0x30]);
         p.extend_from_slice(&[0x30]);
-        p.extend(&mut self.text[0].bytes());
-        p.extend_from_slice(b"\r\n");
-        p.extend(&mut self.text[1].bytes());
+        p.extend_from_slice(&data);
         p.extend_from_slice(&[0x00]);
         p.extend_from_slice(&[0x0f, 0x03]); // end of text
 
@@ -84,6 +82,15 @@ impl Cue {
         p.extend_from_slice(&[0x04]); // end of transmission byte
 
         p
+    }
+
+    pub fn make_payload(&self) -> Vec<u8> {
+        let mut p = vec![];
+        p.extend(&mut self.text[0].bytes());
+        p.extend_from_slice(b"\r\n");
+        p.extend(&mut self.text[1].bytes());
+
+        self.make_payload_with_data(p)
     }
 }
 fn to_ahex(mut val: u8, num_bytes: usize) -> Vec<u8> {
