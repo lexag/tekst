@@ -98,7 +98,6 @@ pub struct TekstApp {
     pub last_go_time: Option<f64>,
     #[serde(skip)]
     pub commandline: CommandLine,
-    #[serde(skip)]
     pub network_writer: NetworkWriter,
     #[serde(skip)]
     pub error_log: ErrorLog,
