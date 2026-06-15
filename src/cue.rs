@@ -50,7 +50,7 @@ impl Cue {
         p.extend_from_slice(&[0x01, 0x31, 0x30, 0x30]);
         p.extend_from_slice(&[0x02, 0x80, 0x81, 0x1a]);
         p.extend_from_slice(&to_ahex(self.brightness.unwrap_or_default(), 2));
-        p.extend_from_slice(&[0x00, 0x00]);
+        p.extend_from_slice(&to_ahex(0x0, 2));
         p.extend_from_slice(&to_ahex(
             if self.fade_speed != Some(FadeSpeed::NoFade) {
                 0xF
@@ -60,8 +60,8 @@ impl Cue {
             1,
         ));
         p.extend_from_slice(&to_ahex(self.fade_speed.unwrap_or_default() as u8, 1));
-        p.extend_from_slice(&[0x00, 0x00]);
-        p.extend_from_slice(&[0x00, 0x00, 0x00, 0x00]);
+        p.extend_from_slice(&to_ahex(0x11, 2));
+        p.extend_from_slice(&[0x30, 0x30, 0x30, 0x30]);
         p.extend_from_slice(&[0x1b, 0x0e]);
         p.extend_from_slice(&to_ahex(self.text_font.unwrap_or_default() as u8, 2));
         p.extend_from_slice(&to_ahex(self.text_color.unwrap_or_default() as u8, 1));
@@ -72,16 +72,16 @@ impl Cue {
         p.extend_from_slice(b"\r\n");
         p.extend(&mut self.text[1].bytes());
         p.extend_from_slice(&[0x00]);
-        p.extend_from_slice(&[0x00, 0x00]);
+        p.extend_from_slice(&[0x0f, 0x03]); // end of text
 
         let mut sum = 0;
         for e in &p {
             sum += *e as u32;
         }
 
+        p.extend_from_slice(&to_ahex(((sum >> 8) & 0xFF) as u8, 2));
         p.extend_from_slice(&to_ahex((sum & 0xFF) as u8, 2));
-        p.extend_from_slice(&to_ahex(((sum >> 2) & 0xFF) as u8, 2));
-        p.extend_from_slice(&[0x00]);
+        p.extend_from_slice(&[0x04]); // end of transmission byte
 
         p
     }
@@ -89,7 +89,12 @@ impl Cue {
 fn to_ahex(mut val: u8, num_bytes: usize) -> Vec<u8> {
     let mut out = vec![];
     while val > 0 {
-        out.push((val & 0xF) + 0x30);
+        let digit = (val & 0xF);
+        if digit <= 9 {
+            out.push(digit + 0x30);
+        } else {
+            out.push(digit + 0x37);
+        }
         val >>= 4;
     }
     out.resize(num_bytes, 0x30);
@@ -172,7 +177,7 @@ mod tests {
     fn ahex() {
         assert_eq!(to_ahex(0x0, 2), [0x30, 0x30]);
         assert_eq!(to_ahex(0x5, 2), [0x30, 0x35]);
-        assert_eq!(to_ahex(0xF, 2), [0x30, 0x3F]);
+        assert_eq!(to_ahex(0xF, 2), [0x30, 0x46]);
         assert_eq!(to_ahex(0x32, 2), [0x33, 0x32]);
     }
 }

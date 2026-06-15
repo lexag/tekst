@@ -1905,6 +1905,7 @@ dependencies = [
 [[package]]
 name = "ks-common-ui"
 version = "2.2.0"
+source = "git+https://github.com/lexag/ks-common?branch=ui-framework#b6ce48c8367021c8171c6fd5d78fafb50ea1e589"
 dependencies = [
  "egui",
  "ks-common-generic",
