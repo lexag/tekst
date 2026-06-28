@@ -1,0 +1,5 @@
+.program pinstream
+
+.wrap_target
+    out pins, 32
+.wrap
