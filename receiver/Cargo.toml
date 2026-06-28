@@ -1,0 +1,17 @@
+[package]
+name = "tekst-receiver"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+cosmic-text = "0.19.0"
+eframe = "0.35.0"
+egui = { version = "0.35.0", optional = true }
+local-ip-address = "0.6.13"
+serde_json = "1.0.150"
+tekst-common = { path = "../common", features = [ "rasterizer" ] }
+
+
+[features]
+embedded = []
+desktop = ["dep:egui"]
