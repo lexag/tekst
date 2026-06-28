@@ -3449,6 +3449,19 @@ dependencies = [
  "ks-common-ui",
  "rodio",
  "serde",
+ "serde_json",
+ "tekst-common",
+]
+
+[[package]]
+name = "tekst-common"
+version = "0.1.0"
+dependencies = [
+ "egui",
+ "ks-common-generic",
+ "ks-common-ui",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]

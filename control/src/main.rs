@@ -11,7 +11,6 @@ mod cue;
 mod cuetable;
 mod elements;
 mod errorlog;
-mod esds;
 mod hotkeys;
 mod network;
 mod sequence;

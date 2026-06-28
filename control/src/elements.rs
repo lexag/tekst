@@ -1,4 +1,4 @@
-use crate::{cue::GlobalStyle, esds::Color};
+use crate::cue::GlobalStyle;
 use egui::{RichText, Widget};
 
 use crate::DISPLAY_NUM_LINES;
@@ -6,6 +6,7 @@ use std::{
     fmt::Display,
     net::{Ipv4Addr, SocketAddrV4},
 };
+use tekst_common::primitive::Color;
 
 pub fn text_lines(
     cue: &crate::cue::Cue,

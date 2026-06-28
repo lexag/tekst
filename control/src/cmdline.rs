@@ -1,8 +1,6 @@
-use crate::{
-    app::{PatchPointer, TekstApp},
-    esds::{Color, FadeSpeed, TextAlign},
-};
+use crate::app::{PatchPointer, TekstApp};
 use std::{fmt::Display, slice::Iter};
+use tekst_common::primitive::{Color, TextAlign, Transition};
 
 #[derive(Clone)]
 pub struct CommandLine {
@@ -180,7 +178,7 @@ impl CommandLine {
                             it.next()?
                             && *c < 10
                         {
-                            FadeSpeed::from(*c)
+                            Transition::from(*c)
                         } else {
                             return None;
                         }
@@ -239,7 +237,7 @@ impl CommandLine {
                         cue.fade_speed = if let CommandLineToken::ValueVal(c) = val_token
                             && *c < 10
                         {
-                            Some(FadeSpeed::from(*c))
+                            Some(Transition::from(*c))
                         } else if *val_token == CommandLineToken::Parent {
                             None
                         } else {

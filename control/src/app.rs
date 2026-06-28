@@ -4,7 +4,6 @@ use crate::{
     cue::{Cue, GlobalStyle},
     cuetable, elements,
     errorlog::ErrorLog,
-    esds::TextAlign,
     hotkeys::{self, ShortcutMap, all_default_shortcuts},
     network::NetworkWriter,
     sequence::{Sequence, SequenceSlot},
@@ -13,12 +12,16 @@ use egui::{
     Align, Align2, Color32, Context, FontId, Layout, Pos2, Rect, RichText, Sense, TextStyle, Widget,
 };
 use egui_file_dialog::FileDialog;
-use ks_common_generic::smpte::{FrameRate, Timecode};
 use ks_common_ui::{
     autoenum::InlineWidgetAutoEnum,
     component_interface::{ConfigurationWidget, InlineWidget, InlineWidgetMenu},
 };
 use std::{f32, fmt::Display};
+use tekst_common::{
+    primitive::TextAlign,
+    protocol::{DisplayContent, Message},
+    textcontent::TextContent,
+};
 
 #[derive(
     serde::Deserialize,
@@ -91,7 +94,7 @@ pub struct TekstApp {
     pub file_pick_pointer: PatchPointer,
     pub global_style: GlobalStyle,
     #[serde(skip)]
-    pub live_cue: Cue,
+    pub live_content: TextContent,
     pub default_cue: Cue,
     pub autoscroll: bool,
     pub op_mode: OpMode,
@@ -117,7 +120,7 @@ impl Default for TekstApp {
             patch_pointer: Default::default(),
             file_pick_pointer: Default::default(),
             global_style: Default::default(),
-            live_cue: Default::default(),
+            live_content: Default::default(),
             default_cue: Default::default(),
             autoscroll: Default::default(),
             shortcuts: all_default_shortcuts(),
@@ -180,11 +183,12 @@ impl TekstApp {
             a.log_error(err);
         }
         a.autogo = AutoGoConsolidator::new(a.ctx.clone());
-        a.live_cue = Cue {
+        a.live_content = TextContent {
             text: [
                 "Hello".to_string(),
                 "Testing a really long message".to_string(),
-            ],
+            ]
+            .to_vec(),
             ..Default::default()
         };
         a.shortcuts.rebuild();
@@ -198,17 +202,30 @@ impl TekstApp {
 
     pub fn go_cue(&mut self, cue: &Cue) {
         if self.op_mode == OpMode::Live {
-            let res = self.network_writer.send_payload(&cue.make_payload());
-            if let Err(e) = res {
-                self.log_error(format!("Could not send on network: {e}"));
-            }
+            self.try_send_payload(cue);
         }
 
         let learned_cue = self.autogo.go_happened(self.selected_cue().clone());
         *self.selected_cue_mut() = learned_cue;
-        self.live_cue = cue.clone();
+        self.live_content = cue.clone().with_global_style(self.global_style);
         self.reset_follow_time();
         self.ctx.request_repaint();
+    }
+
+    fn try_send_payload(&mut self, cue: &Cue) {
+        let json = match serde_json::to_string(&Message::Show(DisplayContent::Text(
+            cue.clone().with_global_style(self.global_style),
+        ))) {
+            Ok(val) => val,
+            Err(e) => {
+                self.log_error(format!("Could not serialize text content: {e}"));
+                return;
+            }
+        };
+        let res = self.network_writer.send_payload(json.as_bytes());
+        if let Err(e) = res {
+            self.log_error(format!("Could not send on network: {e}"));
+        }
     }
 
     fn log_error(&mut self, message: String) {
@@ -221,9 +238,9 @@ impl TekstApp {
     }
 
     pub fn go(&mut self) {
-        let new_cue = self.selected_cue_with_global();
+        let new_cue = self.selected_cue().clone();
         self.go_cue(&new_cue);
-        self.swap_live_cue(new_cue);
+        self.swap_live_cue(new_cue.clone());
     }
 
     fn swap_live_cue(&mut self, _new_cue: Cue) {
@@ -253,7 +270,7 @@ impl TekstApp {
         }
     }
 
-    pub fn selected_cue_with_global(&self) -> Cue {
+    pub fn selected_cue_with_global(&self) -> TextContent {
         self.selected_cue()
             .clone()
             .with_global_style(self.global_style)
@@ -387,7 +404,7 @@ impl TekstApp {
             }
         }
 
-        egui::ProgressBar::new(1.0 - self.autogo.progress(&self.selected_cue_with_global()))
+        egui::ProgressBar::new(1.0 - self.autogo.progress(&self.selected_cue()))
             .fill(color)
             .corner_radius(10.0)
             .ui(ui);
@@ -448,7 +465,7 @@ impl eframe::App for TekstApp {
 
         self.file_dialog.update(ctx);
         self.handle_keybinds();
-        if self.autogo.requests_go(&self.selected_cue_with_global()) {
+        if self.autogo.requests_go(&self.selected_cue()) {
             self.go();
         }
         self.error_log.update(self.opaque_time());
@@ -499,14 +516,14 @@ impl eframe::App for TekstApp {
                         );
                     }
 
-                    if ui.button("Send [.] blanking message").clicked() {
-                        self.network_writer
-                            .send_payload(&Cue::default().make_payload_with_data(vec![b'.']));
-                    }
-                    if ui.button("Send [ ] blanking message").clicked() {
-                        self.network_writer
-                            .send_payload(&Cue::default().make_payload_with_data(vec![]));
-                    }
+                    //if ui.button("Send [.] blanking message").clicked() {
+                    //    self.network_writer
+                    //        .send_payload(&Cue::default().make_payload_with_data(vec![b'.']));
+                    //}
+                    //if ui.button("Send [ ] blanking message").clicked() {
+                    //    self.network_writer
+                    //        .send_payload(&Cue::default().make_payload_with_data(vec![]));
+                    //}
                     if ui.button("Quit").clicked() {
                         ui.ctx().send_viewport_cmd(egui::ViewportCommand::Close);
                     }
@@ -584,7 +601,7 @@ impl eframe::App for TekstApp {
             ui.vertical(|ui| {
                 ui.vertical(|ui| {
                     ui.heading("DISPLAY PROGRAM");
-                    render_screen_preview(ui, &self.live_cue, false);
+                    render_screen_preview(ui, &self.live_content, false);
                     self.go_flasher(ui);
                     ui.heading("DISPLAY PREVIEW");
                     render_screen_preview(ui, &self.selected_cue_with_global(), true);
@@ -605,7 +622,7 @@ impl eframe::App for TekstApp {
     }
 }
 
-fn render_screen_preview(ui: &mut egui::Ui, cue: &Cue, peek_brightness: bool) {
+fn render_screen_preview(ui: &mut egui::Ui, content: &TextContent, peek_brightness: bool) {
     fn text_anchor(rect: Rect, idx: usize, align: TextAlign) -> Pos2 {
         const EDGE_SPACING_VERTICAL: f32 = 5.0;
         const EDGE_SPACING_HORIZONTAL: f32 = 10.0;
@@ -635,20 +652,20 @@ fn render_screen_preview(ui: &mut egui::Ui, cue: &Cue, peek_brightness: bool) {
 
     let (resp, p) = ui.allocate_painter((ui.available_width(), 128.0).into(), Sense::CLICK);
     p.rect_filled(resp.rect, 10.0, Color32::BLACK);
-    let align = cue.text_align.unwrap_or_default();
-    let brightness_factor = cue.brightness.unwrap_or_default() as f32 / 255.0;
+    let align = content.align;
+    let brightness_factor = content.brightness as f32 / 255.0;
     for idx in [0, 1] {
         let anchor = text_anchor(resp.rect, idx, align);
         let alignment = text_align(resp.rect, idx, align);
-        let text = cue.text[idx].clone();
+        let text = content.text[idx].clone();
         let font_id = FontId::new(48.0, egui::FontFamily::Proportional);
         p.text(
             anchor,
             alignment,
             &text,
             font_id.clone(),
-            cue.text_color
-                .unwrap_or_default()
+            content
+                .color
                 .to_egui_color()
                 .gamma_multiply(brightness_factor),
         );
@@ -658,9 +675,8 @@ fn render_screen_preview(ui: &mut egui::Ui, cue: &Cue, peek_brightness: bool) {
                 alignment,
                 text,
                 font_id,
-                Color32::DARK_GRAY.gamma_multiply(
-                    (0.5 - cue.brightness.unwrap_or_default() as f32 / 255.0).max(0.0),
-                ),
+                Color32::DARK_GRAY
+                    .gamma_multiply((0.5 - content.brightness as f32 / 255.0).max(0.0)),
             );
         }
     }
