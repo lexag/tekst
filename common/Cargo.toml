@@ -6,10 +6,13 @@ edition = "2024"
 [dependencies]
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.150"
-egui = { version = "0.35.0", optional = true }
 
 ks-common-ui = { git = "https://github.com/lexag/ks-common", branch="ui-framework", optional = true }
 ks-common-generic = { git = "https://github.com/lexag/ks-common", branch="release/v2.3.0", features = ["serde"] } 
 
+cosmic-text = { version = "0.19.0", optional = true }
+egui = { version = "0.33.3", optional = true }
+
 [features]
 egui = ["dep:egui", "dep:ks-common-ui"]
+rasterizer = ["dep:cosmic-text"]

@@ -1,4 +1,4 @@
-mod image;
-mod primitive;
-mod protocol;
-mod textcontent;
+pub mod image;
+pub mod primitive;
+pub mod protocol;
+pub mod textcontent;

@@ -51,6 +51,42 @@ pub enum Font {
     TimesNewRoman80 = 0xD4,
 }
 
+impl Font {
+    pub fn size(&self) -> usize {
+        match self {
+            Font::Verdana15 => 15,
+            Font::Verdana16 => 16,
+            Font::TimesNewRoman16 => 16,
+            Font::Arial16 => 16,
+            Font::CourierNew16 => 16,
+            Font::System22 => 22,
+            Font::Arial22 => 22,
+            Font::ComicSans22 => 22,
+            Font::CourierNew22 => 22,
+            Font::TimesNewRoman22 => 22,
+            Font::Verdana32 => 32,
+            Font::Arial32 => 32,
+            Font::CourierNew32 => 32,
+            Font::TimesNewRoman32 => 32,
+            Font::LucidaConsole38 => 38,
+            Font::Arial38 => 38,
+            Font::ComicSans38 => 38,
+            Font::CourierNew38 => 38,
+            Font::TimesNewRoman38 => 38,
+            Font::System48 => 48,
+            Font::Arial48 => 48,
+            Font::ComicSans48 => 48,
+            Font::CourierNew48 => 48,
+            Font::TimesNewRoman48 => 48,
+            Font::LucidaConsole80 => 80,
+            Font::Arial80 => 80,
+            Font::ComicSans80 => 80,
+            Font::CourierNew80 => 80,
+            Font::TimesNewRoman80 => 80,
+        }
+    }
+}
+
 impl Display for Font {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -278,6 +314,16 @@ impl Color {
             })
             .response
     }
+
+    #[cfg(feature = "rasterizer")]
+    pub fn to_cosmic_color(self) -> cosmic_text::Color {
+        match self {
+            Self::Blank => cosmic_text::Color::rgb(0, 0, 0),
+            Self::Green => cosmic_text::Color::rgb(0, 255, 0),
+            Self::Red => cosmic_text::Color::rgb(255, 0, 0),
+            Self::Amber => cosmic_text::Color::rgb(255, 255, 0),
+        }
+    }
 }
 
 #[cfg(feature = "egui")]
@@ -334,6 +380,15 @@ impl TextAlign {
                 ui.selectable_value(self, Self::Right, "Right");
             })
             .response
+    }
+
+    #[cfg(feature = "rasterizer")]
+    pub fn to_cosmic_align(self) -> cosmic_text::Align {
+        match self {
+            Self::Center => cosmic_text::Align::Center,
+            Self::Left => cosmic_text::Align::Left,
+            Self::Right => cosmic_text::Align::Right,
+        }
     }
 }
 
