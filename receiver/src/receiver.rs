@@ -7,7 +7,7 @@ use std::{
 use tekst_common::protocol::Message;
 
 pub struct Receiver {
-    listener: TcpListener,
+    pub listener: TcpListener,
 }
 
 impl Receiver {

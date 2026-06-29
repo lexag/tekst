@@ -8,6 +8,7 @@ use tekst_common::{
     textcontent::TextContent,
 };
 
+#[derive(Copy, Clone)]
 pub struct DisplayBuffer {
     pub brightnesses: [u8; DISPLAY_HEIGHT],
 
@@ -21,6 +22,54 @@ pub struct DisplayBuffer {
     pub greens: BitBuffer,
 }
 
+impl DisplayBuffer {
+    const LEFT: usize = 0;
+    const RIGHT: usize = DISPLAY_WIDTH - 1;
+    const MID_LR: usize = DISPLAY_WIDTH / 2;
+    const TOP: usize = 0;
+    const BOTTOM: usize = DISPLAY_HEIGHT - 1;
+    const MID_TB: usize = DISPLAY_HEIGHT / 2;
+
+    /// Solid color image
+    pub fn test_pattern_a(col: Color, bright: u8) -> Self {
+        let mut img = Self::new();
+        if col.r() {
+            img.reds.fill();
+        }
+        if col.g() {
+            img.greens.fill();
+        }
+        img.brightnesses.fill(bright);
+        img
+    }
+
+    /// Solid color image
+    pub fn test_pattern_b() -> Self {
+        let mut img = Self::new();
+        img.reds.rect(Self::LEFT, Self::TOP, 5, 1);
+        img.reds.rect(Self::LEFT, Self::TOP, 1, 5);
+        img.reds.rect(Self::RIGHT - 5, Self::TOP, 5, 1);
+        img.reds.rect(Self::RIGHT, Self::TOP, 1, 5);
+        img.reds.rect(Self::LEFT, Self::BOTTOM, 5, 1);
+        img.reds.rect(Self::LEFT, Self::BOTTOM - 4, 1, 5);
+        img.reds.rect(Self::RIGHT - 4, Self::BOTTOM, 5, 1);
+        img.reds.rect(Self::RIGHT, Self::BOTTOM - 4, 1, 5);
+
+        img.reds.bits[BitBuffer::idx(Self::MID_LR, Self::MID_TB)] =
+            ((DISPLAY_WIDTH & 0x00FF) as u8).reverse_bits();
+        img.reds.bits[BitBuffer::idx(Self::MID_LR + 8, Self::MID_TB)] =
+            (((DISPLAY_WIDTH & 0xFF00) >> 8) as u8).reverse_bits();
+        img.reds.bits[BitBuffer::idx(Self::MID_LR, Self::MID_TB + 2)] =
+            ((DISPLAY_HEIGHT & 0x00FF) as u8).reverse_bits();
+        img.reds.bits[BitBuffer::idx(Self::MID_LR + 8, Self::MID_TB + 2)] =
+            (((DISPLAY_HEIGHT & 0xFF00) >> 8) as u8).reverse_bits();
+        img.greens.rect(Self::MID_LR - 5, Self::MID_TB - 1, 1, 5);
+
+        img
+    }
+}
+
+#[derive(Copy, Clone)]
 pub struct BitBuffer {
     pub bits: [u8; Self::BUFFER_SIZE],
 }
@@ -43,31 +92,35 @@ impl BitBuffer {
     pub fn to_vec(&self) -> Vec<u8> {
         self.bits.to_vec()
     }
+    pub fn idx(x: usize, y: usize) -> usize {
+        x / 8 + y * DISPLAY_WIDTH / 8
+    }
 
     pub fn rect(&mut self, x: usize, y: usize, w: usize, h: usize) {
         //println!("{}, {}, {}, {}", x, y, h, w);
-        fn idx(x: usize, y: usize) -> usize {
-            x / 8 + y * DISPLAY_WIDTH / 8
-        }
 
         for curs_y in y..y + h {
             let mut w_left = w;
             if w >= 8 {
-                self.bits[idx(x, curs_y)] |= 0xFF_u8 >> (x % 8);
+                self.bits[Self::idx(x, curs_y)] |= 0xFF_u8 >> (x % 8);
             } else {
-                self.bits[idx(x, curs_y)] |= !(0xFF_u8 >> w as u8) >> (x as u8 % 8);
+                self.bits[Self::idx(x, curs_y)] |= !(0xFF_u8 >> w as u8) >> (x as u8 % 8);
             }
             w_left -= (8 - x % 8).min(w_left);
 
             for curs_x in (x / 8 + 1)..(x / 8 + w_left / 8) {
-                self.bits[idx(curs_x, curs_y)] |= 0xFF_u8;
+                self.bits[Self::idx(curs_x, curs_y)] |= 0xFF_u8;
                 w_left -= 8;
             }
 
             if w_left > 0 {
-                self.bits[idx(x + w + 8, curs_y)] |= !(0xFF_u8 >> w_left);
+                self.bits[Self::idx(x + w + 8, curs_y)] |= !(0xFF_u8 >> w_left);
             }
         }
+    }
+
+    pub fn fill(&mut self) {
+        self.bits.fill(0xFF);
     }
 }
 
@@ -207,12 +260,15 @@ impl TextRenderer {
         for (i, line) in text.text.iter().enumerate() {
             let glyphs = line.chars().filter_map(|c| self.glyphs.get(&c));
 
-            let line_width: usize = glyphs.clone().map(|g| g.bounding_box.w).sum();
+            let line_width: usize = glyphs
+                .clone()
+                .map(|g| g.bounding_box.w as i32 + g.postpad + g.prepad)
+                .sum::<i32>() as usize;
 
             let mut horizontal_cursor = match text.align {
                 TextAlign::Left => 0,
                 TextAlign::Right => DISPLAY_WIDTH - line_width,
-                TextAlign::Center => DISPLAY_WIDTH / 2 - line_width / 2,
+                TextAlign::Center => (DISPLAY_WIDTH / 2).saturating_sub(line_width / 2),
             };
             let vertical_cursor = DISPLAY_HEIGHT / text.text.len() * i;
 
