@@ -274,11 +274,11 @@ impl InlineWidgetAutoEnum for Transition {
     Ord,
 )]
 pub enum Color {
-    Blank = 0x1,
-    Red = 0x2,
-    Green = 0x3,
+    Blank = 0b00,
+    Red = 0b01,
+    Green = 0b10,
     #[default]
-    Amber = 0x4,
+    Amber = 0b11,
 }
 
 impl Display for Color {
