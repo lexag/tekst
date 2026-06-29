@@ -293,6 +293,14 @@ impl Display for Color {
 }
 
 impl Color {
+    pub fn r(&self) -> bool {
+        *self == Color::Red || *self == Color::Amber
+    }
+
+    pub fn g(&self) -> bool {
+        *self == Color::Green || *self == Color::Amber
+    }
+
     #[cfg(feature = "egui")]
     pub fn to_egui_color(self) -> Color32 {
         match self {
@@ -313,16 +321,6 @@ impl Color {
                 ui.selectable_value(self, Self::Amber, "Amber");
             })
             .response
-    }
-
-    #[cfg(feature = "rasterizer")]
-    pub fn to_cosmic_color(self) -> cosmic_text::Color {
-        match self {
-            Self::Blank => cosmic_text::Color::rgb(0, 0, 0),
-            Self::Green => cosmic_text::Color::rgb(0, 255, 0),
-            Self::Red => cosmic_text::Color::rgb(255, 0, 0),
-            Self::Amber => cosmic_text::Color::rgb(255, 255, 0),
-        }
     }
 }
 
