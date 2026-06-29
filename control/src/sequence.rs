@@ -19,7 +19,7 @@ impl Sequence {
     }
 
     pub fn find_ident(&self, ident: &String) -> Option<usize> {
-        self.cues.iter().position(|c| c.ident == *ident)
+        self.cues.iter().position(|c| c.ident.starts_with(ident))
     }
 
     pub fn goto_ident(&mut self, ident: &String) {
