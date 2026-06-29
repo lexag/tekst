@@ -1,8 +1,12 @@
 use crate::{DISPLAY_HEIGHT, DISPLAY_WIDTH};
-use cosmic_text::{Attrs, Color, FontFeatures, FontSystem, Metrics, Shaping, SwashCache};
 #[cfg(feature = "desktop")]
 use egui::{vec2, Color32, Sense};
-use tekst_common::{primitive::TextAlign, textcontent::TextContent};
+use serde::Deserialize;
+use std::collections::HashMap;
+use tekst_common::{
+    primitive::{Color, TextAlign},
+    textcontent::TextContent,
+};
 
 pub struct DisplayBuffer {
     pub brightnesses: [u8; DISPLAY_HEIGHT],
@@ -41,7 +45,7 @@ impl BitBuffer {
     }
 
     pub fn rect(&mut self, x: usize, y: usize, w: usize, h: usize) {
-        println!("{}, {}, {}, {}", x, y, h, w);
+        //println!("{}, {}, {}, {}", x, y, h, w);
         fn idx(x: usize, y: usize) -> usize {
             x / 8 + y * DISPLAY_WIDTH / 8
         }
@@ -77,31 +81,88 @@ impl DisplayBuffer {
     }
 }
 
+#[derive(Deserialize, Copy, Clone, Debug)]
+pub struct BoundingBox {
+    x: usize,
+    y: usize,
+    w: usize,
+    h: usize,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct BitGlyph {
+    pub c: u32,
+    pub bounding_box: BoundingBox,
+    pub prepad: i32,
+    pub postpad: i32,
+    #[serde(skip)]
+    pub rects: Vec<BoundingBox>,
+}
+
 pub struct TextRenderer {
-    font_system: FontSystem,
-    swash_cache: SwashCache,
     last_content: TextContent,
+    glyphs: HashMap<char, BitGlyph>,
 }
 
 impl TextRenderer {
     pub fn new() -> Self {
-        let mut font_system = FontSystem::new();
-        println!(
-            "num faces before load: {}",
-            font_system.db().faces().count()
-        );
-        font_system
-            .db_mut()
-            .load_font_data(include_bytes!("../fonts/DotGothic16-Regular.ttf").to_vec());
-        println!("num faces after load: {}", font_system.db().faces().count());
+        let bitmaps = [include_bytes!("../fonts/latin.bmp")];
+        let glyphmaps = [include_bytes!("../fonts/latin.json")];
 
-        for face in font_system.db().faces() {
-            println!("family: {:?}", face.families);
+        let mut out_glyphs = HashMap::new();
+        for (&bitmap, glyphmap) in bitmaps.iter().zip(glyphmaps) {
+            let glyphs: Vec<BitGlyph> = serde_json::from_slice(glyphmap).unwrap();
+
+            let bmp_start_offs = bitmap[10] as usize;
+
+            const BMP_W: usize = 12 * 8;
+            const BMP_H: usize = 13 * 16;
+
+            for mut glyph in glyphs {
+                let bmp_x = glyph.bounding_box.x;
+                let bmp_y = BMP_H - glyph.bounding_box.y - 16;
+                let start_idx = bmp_start_offs + (bmp_x + bmp_y * BMP_W) / 8;
+
+                //println!(
+                //    "char {}: bmp_coords: {}, {}\n start_idx: {}",
+                //    char::from_u32(glyph.c).unwrap(),
+                //    bmp_x,
+                //    bmp_y,
+                //    start_idx
+                //);
+                //println!("bb: {:#?}, BMP_W: {}, ", glyph.bounding_box, BMP_W);
+
+                let stride = BMP_W / 8;
+                let count = glyph.bounding_box.h;
+
+                for y in 0..count {
+                    let idx = start_idx + y * stride;
+                    for bit in 0..8 {
+                        if bitmap[idx] & 0x1 << (7 - bit) > 0 {
+                            glyph.rects.push(BoundingBox {
+                                x: bit,
+                                y: 16 - y,
+                                w: 1,
+                                h: 1,
+                            });
+                            //print!("#");
+                        } //else {
+                          //print!(" ");
+                          //}
+                    }
+                    //println!();
+                }
+
+                let Some(character) = char::from_u32(glyph.c) else {
+                    continue;
+                };
+                out_glyphs.insert(character, glyph);
+            }
+            //println!("{:#?}", out_glyphs.get(&'A'));
+            //println!("{:#?}", out_glyphs.get(&'A').unwrap().rects.len());
         }
-
         Self {
-            font_system,
-            swash_cache: SwashCache::new(),
+            glyphs: out_glyphs,
             last_content: TextContent::default(),
         }
     }
@@ -114,11 +175,11 @@ impl TextRenderer {
         );
         p.rect_filled(resp.rect, 0.0, Color32::DARK_BLUE);
 
-        self.metarender(self.last_content.clone(), |x, y, w, h, color| {
+        self.metarender(self.last_content.clone(), |rect, color| {
             p.circle_filled(
-                resp.rect.min + vec2(scale * x as f32, scale * y as f32),
+                resp.rect.min + vec2(scale * rect.x as f32, scale * rect.y as f32),
                 scale / 2.0,
-                Color32::from_rgba_unmultiplied(color.r(), color.g(), color.b(), color.a()),
+                color.to_egui_color(),
             );
         });
     }
@@ -128,17 +189,12 @@ impl TextRenderer {
 
         let mut img = DisplayBuffer::new();
 
-        const TRANSPARENCY_THRESHOLD: u8 = 140;
-        self.metarender(text, |x, y, w, h, color| {
-            if color.a() >= TRANSPARENCY_THRESHOLD {
-                if color.r() > 0 {
-                    img.reds
-                        .rect(x as usize, y as usize, w as usize, h as usize);
-                }
-                if color.g() > 0 {
-                    img.greens
-                        .rect(x as usize, y as usize, w as usize, h as usize);
-                }
+        self.metarender(text, |rect, color| {
+            if color.r() {
+                img.reds.rect(rect.x, rect.y, rect.w, rect.h);
+            }
+            if color.g() {
+                img.greens.rect(rect.x, rect.y, rect.w, rect.h);
             }
         });
         img
@@ -146,35 +202,35 @@ impl TextRenderer {
 
     pub fn metarender<F>(&mut self, text: TextContent, mut render_closure: F)
     where
-        F: FnMut(i32, i32, u32, u32, Color),
+        F: FnMut(BoundingBox, Color),
     {
-        let size = text.font.size() as f32;
-        let metrics = Metrics::new(16.0, 16.0);
-        let attrs = Attrs::new().family(cosmic_text::Family::Name("DotGothic16"));
+        for (i, line) in text.text.iter().enumerate() {
+            let glyphs = line.chars().filter_map(|c| self.glyphs.get(&c));
 
-        let num_lines = text.text.len();
-        for (i, line_text) in text.text.iter().enumerate() {
-            let mut buffer = cosmic_text::Buffer::new(&mut self.font_system, metrics);
-            let mut buffer = buffer.borrow_with(&mut self.font_system);
+            let line_width: usize = glyphs.clone().map(|g| g.bounding_box.w).sum();
 
-            buffer.set_size(
-                Some(DISPLAY_WIDTH as f32),
-                Some((DISPLAY_HEIGHT / num_lines) as f32),
-            );
-            buffer.set_text(
-                line_text,
-                &attrs,
-                Shaping::Advanced,
-                Some(text.align.to_cosmic_align()),
-            );
+            let mut horizontal_cursor = match text.align {
+                TextAlign::Left => 0,
+                TextAlign::Right => DISPLAY_WIDTH - line_width,
+                TextAlign::Center => DISPLAY_WIDTH / 2 - line_width / 2,
+            };
+            let vertical_cursor = DISPLAY_HEIGHT / text.text.len() * i;
 
-            buffer.draw(
-                &mut self.swash_cache,
-                text.color.to_cosmic_color(),
-                |x, y, w, h, color| {
-                    (render_closure)(x, y + (DISPLAY_HEIGHT / num_lines * i) as i32, w, h, color)
-                },
-            );
+            for glyph in glyphs {
+                horizontal_cursor = (horizontal_cursor as i32 + glyph.prepad).max(0) as usize;
+                for rect in &glyph.rects {
+                    (render_closure)(
+                        BoundingBox {
+                            x: rect.x + horizontal_cursor,
+                            y: rect.y + vertical_cursor - i,
+                            ..*rect
+                        },
+                        text.color,
+                    );
+                }
+                horizontal_cursor = (horizontal_cursor as i32 + glyph.postpad).max(0) as usize;
+                horizontal_cursor += glyph.bounding_box.w;
+            }
         }
     }
 }

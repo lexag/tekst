@@ -2,7 +2,12 @@ use crate::{
     receiver::Receiver,
     renderer::{DisplayBuffer, TextRenderer},
 };
-use tekst_common::protocol::{DisplayContent, Message};
+use egui::CursorIcon::Text;
+use tekst_common::{
+    primitive::{Color, TextAlign, Transition},
+    protocol::{DisplayContent, Message},
+    textcontent::TextContent,
+};
 
 pub struct Handler {
     pub receiver: Receiver,
@@ -17,6 +22,23 @@ impl Handler {
             display: DisplayBuffer::new(),
             renderer: TextRenderer::new(),
         }
+        .startup()
+    }
+
+    fn startup(mut self) -> Self {
+        self.display = self.renderer.render(TextContent {
+            text: vec![
+                "The quick brown fox jumps over the lazy dog".to_string(),
+                "Hello World".to_string(),
+            ],
+            brightness: 255,
+            transition: Transition::NoFade,
+            color: Color::Green,
+            align: TextAlign::Center,
+            font: tekst_common::primitive::Font::ComicSans22,
+        });
+
+        self
     }
 
     pub fn tick(&mut self) {
