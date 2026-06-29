@@ -1,5 +1,8 @@
-const DISPLAY_WIDTH: usize = 512;
+const DISPLAY_WIDTH: usize = 488;
 const DISPLAY_HEIGHT: usize = 32;
+
+#[cfg(feature = "desktop")]
+const POINT_SIZE: f32 = 3.0;
 
 #[cfg(feature = "desktop")]
 mod app;
@@ -12,8 +15,14 @@ mod renderer;
 fn main() -> eframe::Result {
     let native_options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
-            .with_inner_size([1800.0, 300.0])
-            .with_min_inner_size([300.0, 220.0]),
+            .with_inner_size([
+                DISPLAY_WIDTH as f32 * POINT_SIZE + 3.0,
+                DISPLAY_HEIGHT as f32 * POINT_SIZE + 20.0,
+            ])
+            .with_min_inner_size([
+                DISPLAY_WIDTH as f32 * POINT_SIZE + 3.0,
+                DISPLAY_HEIGHT as f32 * POINT_SIZE + 20.0,
+            ]),
         ..Default::default()
     };
     eframe::run_native(
