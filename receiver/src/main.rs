@@ -7,6 +7,9 @@ const POINT_SIZE: f32 = 3.0;
 #[cfg(feature = "desktop")]
 mod app;
 
+#[cfg(feature = "embedded")]
+mod spi;
+
 mod handler;
 mod receiver;
 mod renderer;
@@ -32,5 +35,24 @@ fn main() -> eframe::Result {
     )
 }
 
-#[cfg(not(feature = "desktop"))]
-fn main() {}
+#[cfg(feature = "embedded")]
+fn main() {
+    use crate::handler::Handler;
+    use crate::spi;
+
+    let mut handler = Handler::new();
+    let mut spi = spi::SpiDriver::new();
+
+    loop {
+        use std::time::Duration;
+
+        if let Some(display) = handler.tick() {
+            spi.send_buffer(display);
+        }
+        std::thread::sleep(Duration::from_millis(100))
+    }
+}
+
+fn init_filetree() {
+    std::fs::create_dir_all("~/.tekst/imgs").unwrap();
+}

@@ -7,6 +7,7 @@ edition = "2024"
 eframe = "0.33.3"
 egui = { version = "0.33.3", optional = true }
 local-ip-address = "0.6.13"
+rppal = "0.22.1"
 serde = "1.0.228"
 serde_json = "1.0.150"
 tekst-common = { path = "../common", features = [ "egui" ] }
@@ -15,3 +16,5 @@ tekst-common = { path = "../common", features = [ "egui" ] }
 [features]
 embedded = []
 desktop = ["dep:egui"]
+
+embedded-animations = []
