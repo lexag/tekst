@@ -46,7 +46,7 @@ const uint32_t display_pins[10] = {5 - PIN_BASE, 6 - PIN_BASE, 8 - PIN_BASE, 7 -
 static uint8_t wave_buffer[BUFFER_LEN]  __attribute__ ((aligned (8))) = {
     0
 };
-static uint8_t rx_buffer[DISPLAY_HEIGHT + DISPLAY_WIDTH * DISPLAY_HEIGHT * COLOR_DEPTH * NUM_DISPLAYS / 8] = {
+static uint8_t rx_buffer[DISPLAY_HEIGHT + DISPLAY_WIDTH * DISPLAY_HEIGHT * COLOR_DEPTH * NUM_DISPLAYS / 8 + DISPLAY_WIDTH] = {
     0xFF
 };
 static uint32_t rx_index = 0;
@@ -55,9 +55,10 @@ static uint8_t rx_ident = 0;
 static uint32_t state = 1u << LATCH;
 static uint32_t wp = 0;
 static int actual_buffer_len = 0;
-static int buf_sel = 0;
 static volatile bool wave_dirty = 0;
 static int row_index = 0;
+
+static int brightness_ptr = 0;
 
 static int debug_val = 0;
 
@@ -121,7 +122,7 @@ void data_tick(int idx, int dat_r, int dat_g, int brightness) {
     clk(1);
     set_pin(pin(DATA_GREEN), !dat_g);
     set_pin(pin(DATA_RED), !dat_r);
-    write(5);
+    write(2);
 
     //if (idx == (DISPLAY_WIDTH * (255 - ((brightness - 2)/2 + 128))) / 255 - 1) {
     //    set_pin(BLANK, 0);
@@ -138,7 +139,7 @@ void data_tick(int idx, int dat_r, int dat_g, int brightness) {
     if (idx % 8 == 7) {
         write(PAUSE_LEN);
     }
-    write(10);
+    write(5);
 }
 
 
@@ -146,7 +147,7 @@ void header(bool no_blank, int brightness) {
     clk(1);
     set_pin(pin(DATA_GREEN), 0);
     set_pin(pin(DATA_RED), 0);
-    write(29);
+    write(10);
 
     if (!no_blank) {
         set_pin(pin(BLANK), 1);
@@ -159,8 +160,8 @@ void header(bool no_blank, int brightness) {
     set_pin(pin(LATCH), 1);
     write(3);
     
-    //if (!no_blank) set_pin(BLANK, 0);
-    write(69);
+    //set_pin(pin(BLANK), 0);
+    write(10);
 
     clk(0);
     set_pin(pin(DATA_GREEN), 1);
@@ -175,34 +176,47 @@ void wait_until_end() {
 
 void build_wave() {
     wp = 0;
-    for (int display_idx = 0; display_idx < NUM_DISPLAYS; display_idx++) {
-        pin_address_offset = 5 * display_idx;
+    const int PIXEL_BITS = DISPLAY_HEIGHT * DISPLAY_WIDTH / 8;
+    const int px_start = DISPLAY_HEIGHT * NUM_DISPLAYS;
 
-        const int PIXEL_BITS = DISPLAY_HEIGHT * DISPLAY_WIDTH / 8;
-        const int px_start = DISPLAY_HEIGHT * NUM_DISPLAYS;
 
-        int red_offs = px_start + display_idx * PIXEL_BITS;
-        int green_offs = red_offs + PIXEL_BITS * NUM_DISPLAYS;
+    for (int i = 0; i < DISPLAY_HEIGHT + 1; i++) {
+        int row = DISPLAY_HEIGHT - 1 - (i % DISPLAY_HEIGHT);
+        //int bright = rx_buffer[row];
+        int bright = rx_buffer[0];
+        int row_offs = row*DISPLAY_WIDTH / 8;
 
-        for (int i = 0; i < DISPLAY_HEIGHT; i++) {
-            int row = DISPLAY_HEIGHT - 1 - (i % DISPLAY_HEIGHT);
-            int bright = rx_buffer[row];
+        for (int display_idx = 0; display_idx < NUM_DISPLAYS; display_idx++) {
+            pin_address_offset = 5 * display_idx;
+            int red_offs = px_start + display_idx * PIXEL_BITS;
+            int green_offs = red_offs + PIXEL_BITS * NUM_DISPLAYS;
 
+            set_pin(pin(BLANK), 1);
             for (int x = 0; x < DISPLAY_WIDTH; x++) {
-                int px_offs = x/8 + row * DISPLAY_WIDTH/8;
+                int px_offs = x/8 + row_offs;
                 bool red = (rx_buffer[red_offs + px_offs] & (0x1 << (7 - (x % 8)))) > 0;
                 bool green = (rx_buffer[green_offs + px_offs] & (0x1 << (7 - (x % 8)))) > 0;
+
+                //if (x == bright * DISPLAY_WIDTH / 255) {
+                //    pin_address_offset = 5 - 5 * display_idx;
+                //    set_pin(pin(BLANK), 0);
+                //}
+                //pin_address_offset = 5 * display_idx;
 
                 data_tick(x, red, green, bright);
             }
             header(false, 0);
         }
 
+    };
+
+    for (int display_idx = 0; display_idx < NUM_DISPLAYS; display_idx++) {
+        pin_address_offset = 5 * display_idx;
         for (int x = 0; x < DISPLAY_WIDTH; x++) {
             data_tick(x, 0, 0, 255);
         }
         header(true, 0);
-    };
+    }
     //wave_buffer[0] |= 0x1 << SCRN;
     //row_index++;
     //row_index %= SCAN_ROWS;
@@ -236,6 +250,7 @@ void __isr i2c1_irq_handler(void)
         //flip_led();
 
         if (rx_ident == 3) {
+            build_wave();
             flip_led();
             //flip_led();
             rx_index = 0;
@@ -255,7 +270,7 @@ void dma_irq_handler() {
     dma_channel_start(dma_chan_data);
 
     if (wave_dirty) {
-        build_wave();
+        //build_wave();
         wave_dirty = false;
     }
 }
@@ -292,7 +307,7 @@ int main() {
     sm_config_set_fifo_join(&c, PIO_FIFO_JOIN_TX);
 
     // Set clock divider (adjust speed here)
-    float div = 15.00f;
+    float div = 12.00f;
     sm_config_set_clkdiv(&c, div);
 
     // Init GPIO function to PIO
