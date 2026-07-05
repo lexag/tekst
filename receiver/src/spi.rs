@@ -1,22 +1,16 @@
 use crate::renderer::DisplayBuffer;
-use rppal::spi;
+use rppal::i2c;
 
 pub struct SpiDriver {
-    spi: spi::Spi,
+    spi: i2c::I2c,
 }
 
 impl SpiDriver {
-    const BUS: spi::Bus = spi::Bus::Spi0;
-
     pub fn new() -> Self {
+	let mut i = i2c::I2c::new().unwrap();
+	i.set_slave_address(0x30);
         Self {
-            spi: spi::Spi::new(
-                Self::BUS,
-                spi::SlaveSelect::Ss0,
-                1_000_000_000,
-                spi::Mode::Mode0,
-            )
-            .unwrap(),
+            spi: i
         }
     }
 

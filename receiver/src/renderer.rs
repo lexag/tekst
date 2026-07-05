@@ -1,6 +1,6 @@
 use crate::{DISPLAY_HEIGHT, DISPLAY_WIDTH};
 #[cfg(feature = "desktop")]
-use egui::{vec2, Color32, Sense};
+use egui::{vec2, Color32, Sense, Ui};
 use serde::Deserialize;
 use std::collections::HashMap;
 use tekst_common::{
@@ -221,7 +221,7 @@ impl TextRenderer {
     }
 
     #[cfg(feature = "desktop")]
-    pub fn egui_render(&mut self, ui: &mut egui::Ui, scale: f32) {
+    pub fn egui_render(&mut self, ui: &mut Ui, scale: f32) {
         let (resp, p) = ui.allocate_painter(
             vec2(scale * DISPLAY_WIDTH as f32, scale * DISPLAY_HEIGHT as f32),
             Sense::empty(),
