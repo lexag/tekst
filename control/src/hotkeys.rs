@@ -15,18 +15,21 @@ pub struct ShortcutMap {
     map: HashMap<ActionID, usize>,
 }
 
-const CMDLINE_HOTKEYS: [(CommandLineToken, Key); 12] = [
+const CMDLINE_HOTKEYS: [(CommandLineToken, Key); 15] = [
     (CommandLineToken::Goto, Key::G),
     (CommandLineToken::Delete, Key::D),
     (CommandLineToken::Seq, Key::S),
-    (CommandLineToken::Art, Key::A),
     (CommandLineToken::Cue, Key::Q),
+    (CommandLineToken::To, Key::H),
     (CommandLineToken::Insert, Key::I),
+    (CommandLineToken::Append, Key::A),
+    (CommandLineToken::Split, Key::Y),
+    (CommandLineToken::Merge, Key::U),
     (CommandLineToken::Edit, Key::E),
     (CommandLineToken::Parent, Key::P),
     (CommandLineToken::Align, Key::X),
     (CommandLineToken::Color, Key::C),
-    (CommandLineToken::Fade, Key::V),
+    (CommandLineToken::Transition, Key::V),
     (CommandLineToken::Brightness, Key::B),
 ];
 
@@ -67,8 +70,8 @@ pub enum ActionID {
     SelectCueDown(usize),
     SelectCueFirst,
     SelectCueLast,
-    SelectCueChapterNext,
-    SelectCueChapterPrev,
+    SelectCueMarkNext,
+    SelectCueMarkPrev,
     CommandLineAppendToken(CommandLineToken),
     CommandLineAppendChar(char),
     CommandLinePlease,
@@ -102,7 +105,14 @@ pub fn exec_action(app: &mut TekstApp, action_id: ActionID) {
             try_cue_last(app);
             app.autogo.dry_go_happened();
         }
-        ActionID::SelectCueChapterNext | ActionID::SelectCueChapterPrev => {}
+        ActionID::SelectCueMarkNext => {
+            try_cue_mark_next(app);
+            app.autogo.dry_go_happened();
+        }
+        ActionID::SelectCueMarkPrev => {
+            try_cue_mark_prev(app);
+            app.autogo.dry_go_happened();
+        }
         ActionID::CommandLineAppendToken(token) => {
             app.commandline.push_token(token);
         }
@@ -121,32 +131,49 @@ pub fn exec_action(app: &mut TekstApp, action_id: ActionID) {
     }
 }
 
-fn try_cue_last(app: &mut TekstApp) {
-    if let Some(seq) = app.selected_sequence() {
-        seq.sequence.cue_pointer = seq.sequence.cues.len() - 1;
-    }
+fn try_cue_last(app: &mut TekstApp) -> Option<()> {
+    let seq = app.selected_sequence_mut().as_mut()?;
+    seq.sequence.cue_pointer = seq.sequence.cues.len() - 1;
+    None
 }
 
-fn try_cue_first(app: &mut TekstApp) {
-    if let Some(seq) = app.selected_sequence() {
-        seq.sequence.cue_pointer = 0;
-    }
+fn try_cue_first(app: &mut TekstApp) -> Option<()> {
+    let seq = app.selected_sequence_mut().as_mut()?;
+    seq.sequence.cue_pointer = 0;
+    None
 }
 
-fn try_cue_add(app: &mut TekstApp, num: usize) {
-    if let Some(seq) = app.selected_sequence() {
+fn try_cue_add(app: &mut TekstApp, num: usize) -> Option<()> {
+    if let Some(seq) = app.selected_sequence_mut() {
         seq.sequence.cue_pointer = seq
             .sequence
             .cue_pointer
             .saturating_add(num)
             .min(seq.sequence.cues.len() - 1);
     }
+    None
 }
 
-fn try_cue_sub(app: &mut TekstApp, num: usize) {
-    if let Some(seq) = app.selected_sequence() {
-        seq.sequence.cue_pointer = seq.sequence.cue_pointer.saturating_sub(num);
-    }
+fn try_cue_sub(app: &mut TekstApp, num: usize) -> Option<()> {
+    let seq = app.selected_sequence_mut().as_mut()?;
+    seq.sequence.cue_pointer = seq.sequence.cue_pointer.saturating_sub(num);
+    None
+}
+
+fn try_cue_mark_next(app: &mut TekstApp) -> Option<()> {
+    app.selected_sequence_mut()
+        .as_mut()?
+        .sequence
+        .goto_next_mark();
+    None
+}
+
+fn try_cue_mark_prev(app: &mut TekstApp) -> Option<()> {
+    app.selected_sequence_mut()
+        .as_mut()?
+        .sequence
+        .goto_prev_mark();
+    None
 }
 
 pub fn all_default_shortcuts() -> ShortcutMap {
@@ -177,6 +204,15 @@ fn add_commandline_shortcuts(shortcuts: &mut ShortcutMap) -> Option<()> {
     shortcuts.add(ActionID::CommandLineBackspace, press(Key::Backspace));
     shortcuts.add(ActionID::CommandLineCancel, press(Key::Escape));
 
+    shortcuts.add(
+        ActionID::CommandLineAppendToken(CommandLineToken::Ident("<here>".to_string())),
+        press(Key::Backtick),
+    );
+    shortcuts.add(
+        ActionID::CommandLineAppendToken(CommandLineToken::Ident("<mark>".to_string())),
+        press(Key::M),
+    );
+
     for (token, key) in CMDLINE_HOTKEYS {
         shortcuts.add(ActionID::CommandLineAppendToken(token), press(key));
     }
@@ -185,23 +221,24 @@ fn add_commandline_shortcuts(shortcuts: &mut ShortcutMap) -> Option<()> {
 }
 
 fn add_patch_shortcuts(shortcuts: &mut ShortcutMap) {
-    for (i, key) in [Key::F1, Key::F2, Key::F3, Key::F4].iter().enumerate() {
-        shortcuts.add(
-            ActionID::ChangePatch(PatchPointer::Sequence(i)),
-            press(*key),
-        );
-    }
-    for (i, key) in [Key::F5, Key::F6, Key::F7, Key::F8].iter().enumerate() {
-        shortcuts.add(
-            ActionID::ChangePatch(PatchPointer::PatchCue(i)),
-            press(*key),
-        );
-    }
-    for (i, key) in [Key::F9, Key::F10, Key::F11, Key::F12].iter().enumerate() {
-        shortcuts.add(
-            ActionID::ChangePatch(PatchPointer::PatchImageCue(i)),
-            press(*key),
-        );
+    for (i, key) in [
+        Key::F1,
+        Key::F2,
+        Key::F3,
+        Key::F4,
+        Key::F5,
+        Key::F6,
+        Key::F7,
+        Key::F8,
+        Key::F9,
+        Key::F10,
+        Key::F11,
+        Key::F12,
+    ]
+    .iter()
+    .enumerate()
+    {
+        shortcuts.add(ActionID::ChangeSequence(i), press(*key));
     }
 }
 

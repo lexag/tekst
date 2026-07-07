@@ -1,5 +1,9 @@
-use crate::app::{PatchPointer, TekstApp};
-use std::{fmt::Display, slice::Iter};
+use crate::{
+    app::{PatchPointer, TekstApp},
+    cue::Cue,
+    sequence::SequenceSlot,
+};
+use std::{fmt::Display, slice::Iter, thread::current};
 use tekst_common::primitive::{Color, TextAlign, Transition};
 
 #[derive(Clone)]
@@ -35,7 +39,12 @@ impl CommandLine {
         match self.tokens.last_mut()? {
             CommandLineToken::Ident(s) => s.push(c),
             CommandLineToken::ValueVal(v) => {
-                *v = v.saturating_mul(10).saturating_add(c.to_digit(10)? as u8)
+                *v = v
+                    .saturating_mul(10)
+                    .saturating_add(u8::try_from(c.to_digit(10)?).ok()?);
+            }
+            CommandLineToken::TransitionVal(v) => {
+                *v = Transition::from(u8::try_from(c.to_digit(10)?).ok()?);
             }
             CommandLineToken::ColorVal(v) => {
                 *v = match c {
@@ -69,13 +78,20 @@ impl CommandLine {
                     _ => return Some(false),
                 }));
             }
-            CommandLineToken::Fade | CommandLineToken::Brightness => {
-                self.push_token(CommandLineToken::ValueVal(c.to_digit(10)? as u8));
+            CommandLineToken::Transition => {
+                self.push_token(CommandLineToken::TransitionVal(Transition::from(
+                    u8::try_from(c.to_digit(10)?).ok()?,
+                )));
+            }
+            CommandLineToken::Brightness => {
+                self.push_token(CommandLineToken::ValueVal(
+                    u8::try_from(c.to_digit(10)?).ok()?,
+                ));
             }
             _ => {
                 self.push_token(CommandLineToken::Ident(c.to_string()));
             }
-        };
+        }
         Some(true)
     }
 
@@ -99,6 +115,7 @@ impl CommandLine {
             CommandLineToken::Edit => return self.execute_edit(app, it),
             CommandLineToken::Delete => return self.execute_delete(app, it),
             CommandLineToken::Insert => return self.execute_insert(app, it),
+            CommandLineToken::Append => return self.execute_append(app, it),
             _ => {}
         }
         Some(true)
@@ -121,22 +138,7 @@ impl CommandLine {
                 if !(1..=4).contains(&ident_parsed?) {
                     return None;
                 }
-                app.patch_pointer = PatchPointer::Sequence(ident_parsed? - 1);
                 app.selected_sequence_idx = ident_parsed? - 1;
-                app.autogo.dry_go_happened();
-            }
-            CommandLineToken::Art => {
-                if !(1..=4).contains(&ident_parsed?) {
-                    return None;
-                }
-                app.patch_pointer = PatchPointer::PatchImageCue(ident_parsed? - 1);
-                app.autogo.dry_go_happened();
-            }
-            CommandLineToken::PatchCue => {
-                if !(1..=4).contains(&ident_parsed?) {
-                    return None;
-                }
-                app.patch_pointer = PatchPointer::PatchCue(ident_parsed? - 1);
                 app.autogo.dry_go_happened();
             }
             _ => return Some(false),
@@ -145,119 +147,81 @@ impl CommandLine {
     }
 
     fn execute_edit(&self, app: &mut TekstApp, mut it: Iter<CommandLineToken>) -> Option<bool> {
-        let subject = it.next()?;
-        if *subject == CommandLineToken::Parent {
-            while let Some(prop) = it.next() {
-                match prop {
-                    CommandLineToken::Brightness => {
-                        app.global_style.brightness =
-                            if let CommandLineToken::ValueVal(c) = it.next()? {
-                                *c
-                            } else {
-                                return None;
-                            }
-                    }
-                    CommandLineToken::Color => {
-                        app.global_style.text_color =
-                            if let CommandLineToken::ColorVal(c) = it.next()? {
-                                *c
-                            } else {
-                                return None;
-                            }
-                    }
-                    CommandLineToken::Align => {
-                        app.global_style.text_align =
-                            if let CommandLineToken::AlignVal(c) = it.next()? {
-                                *c
-                            } else {
-                                return None;
-                            }
-                    }
-                    CommandLineToken::Fade => {
-                        app.global_style.fade_speed = if let CommandLineToken::ValueVal(c) =
-                            it.next()?
-                            && *c < 10
-                        {
-                            Transition::from(*c)
-                        } else {
-                            return None;
-                        }
-                    }
-                    _ => return None,
+        let subject_type = it.next()?;
+        match subject_type {
+            CommandLineToken::Parent => execute_edit_parent(app, &mut it),
+            CommandLineToken::Cue => {
+                for cue_idx in parse_cue_ident(app, &mut it)? {
+                    let cue = get_cue_by_index(app, cue_idx)?;
+
+                    let personal_it = it.clone();
+                    execute_edit_cue(cue, personal_it)?;
                 }
+                Some(true)
             }
-        } else {
-            let CommandLineToken::Ident(ident) = it.next()? else {
-                return None;
-            };
-            let cue = match subject {
-                CommandLineToken::Cue => {
-                    if let Some(seq) = app.selected_sequence()
-                        && let Some(idx) = seq.sequence.find_ident(ident)
-                    {
-                        &mut seq.sequence.cues[idx]
-                    } else {
-                        return Some(false);
-                    }
-                }
-                CommandLineToken::PatchCue | CommandLineToken::Art => return Some(false),
-                _ => return Some(false),
-            };
-            while let Some(prop) = it.next() {
-                let val_token = it.next()?;
-                match prop {
-                    CommandLineToken::Brightness => {
-                        cue.brightness = if let CommandLineToken::ValueVal(c) = val_token {
-                            Some(*c)
-                        } else if *val_token == CommandLineToken::Parent {
-                            None
-                        } else {
-                            return None;
-                        }
-                    }
-                    CommandLineToken::Color => {
-                        cue.text_color = if let CommandLineToken::ColorVal(c) = val_token {
-                            Some(*c)
-                        } else if *val_token == CommandLineToken::Parent {
-                            None
-                        } else {
-                            return None;
-                        }
-                    }
-                    CommandLineToken::Align => {
-                        cue.text_align = if let CommandLineToken::AlignVal(c) = val_token {
-                            Some(*c)
-                        } else if *val_token == CommandLineToken::Parent {
-                            None
-                        } else {
-                            return None;
-                        }
-                    }
-                    CommandLineToken::Fade => {
-                        cue.fade_speed = if let CommandLineToken::ValueVal(c) = val_token
-                            && *c < 10
-                        {
-                            Some(Transition::from(*c))
-                        } else if *val_token == CommandLineToken::Parent {
-                            None
-                        } else {
-                            return None;
-                        }
-                    }
-                    _ => return None,
-                }
-            }
+            _ => None,
         }
+    }
 
+    fn execute_delete(&self, app: &mut TekstApp, mut it: Iter<CommandLineToken>) -> Option<bool> {
+        match it.next()? {
+            CommandLineToken::Seq => {
+                let slot_number = try_parse_seq_ident(app, it)?;
+                app.sequences[slot_number.saturating_sub(1)].take();
+                Some(true)
+            }
+            CommandLineToken::Cue => {
+                let rm_idxs = parse_cue_ident(app, &mut it)?;
+                let sel_seq = &app.selected_sequence()?.sequence;
+                if sel_seq.cues.len() > rm_idxs.len() {
+                    let cues: Vec<Cue> = sel_seq
+                        .cues
+                        .iter()
+                        .enumerate()
+                        .filter_map(|(i, c)| {
+                            if rm_idxs.contains(&i) {
+                                None
+                            } else {
+                                Some(c.clone())
+                            }
+                        })
+                        .collect();
+                    app.selected_sequence_mut().as_mut()?.sequence.cues = cues;
+                }
+                Some(true)
+            }
+            _ => None,
+        }
+    }
+
+    fn execute_insert(&self, app: &mut TekstApp, mut it: Iter<CommandLineToken>) -> Option<bool> {
+        match it.next()? {
+            CommandLineToken::Seq => {
+                let slot_number = try_parse_seq_ident(app, it)?;
+                Some(app.load_sequence_file(slot_number.saturating_sub(1)))
+            }
+            CommandLineToken::Cue => {
+                let idx = parse_single_ident(&mut it, app.selected_sequence()?)?;
+                app.selected_sequence_mut()
+                    .as_mut()?
+                    .sequence
+                    .insert_cue(idx);
+
+                Some(true)
+            }
+            _ => None,
+        }
+    }
+    fn execute_append(&self, app: &mut TekstApp, mut it: Iter<CommandLineToken>) -> Option<bool> {
+        if *it.next()? == CommandLineToken::Cue {
+            let idx = parse_single_ident(&mut it, app.selected_sequence()?)?;
+            app.selected_sequence_mut()
+                .as_mut()?
+                .sequence
+                .insert_cue(idx + 1);
+            return Some(true);
+        }
         None
-    }
-
-    fn execute_delete(&self, _app: &mut TekstApp, _it: Iter<CommandLineToken>) -> Option<bool> {
-        Some(true)
-    }
-
-    fn execute_insert(&self, _app: &mut TekstApp, _it: Iter<CommandLineToken>) -> Option<bool> {
-        Some(true)
     }
 
     fn try_autoreplace(tokens: &mut Vec<CommandLineToken>) {
@@ -272,10 +236,25 @@ impl CommandLine {
 
     fn autoreplace_lookup(tokens: &[CommandLineToken]) -> Option<Vec<CommandLineToken>> {
         match tokens {
+            [CommandLineToken::Edit, CommandLineToken::Ident(s)] => Some(vec![
+                CommandLineToken::Edit,
+                CommandLineToken::Cue,
+                CommandLineToken::Ident(s.clone()),
+            ]),
+            [CommandLineToken::Append, CommandLineToken::Ident(s)] => Some(vec![
+                CommandLineToken::Append,
+                CommandLineToken::Cue,
+                CommandLineToken::Ident(s.clone()),
+            ]),
+            [CommandLineToken::Insert, CommandLineToken::Ident(s)] => Some(vec![
+                CommandLineToken::Insert,
+                CommandLineToken::Cue,
+                CommandLineToken::Ident(s.clone()),
+            ]),
             [CommandLineToken::Goto, CommandLineToken::Ident(s)] => Some(vec![
                 CommandLineToken::Goto,
                 CommandLineToken::Cue,
-                CommandLineToken::Ident(s.to_string()),
+                CommandLineToken::Ident(s.clone()),
             ]),
             _ => None,
         }
@@ -291,6 +270,137 @@ impl CommandLine {
     }
 }
 
+fn get_cue_by_index(app: &mut TekstApp, cue_idx: usize) -> Option<&mut Cue> {
+    app.selected_sequence_mut()
+        .as_mut()?
+        .sequence
+        .cues
+        .get_mut(cue_idx)
+}
+
+fn execute_edit_cue(cue: &mut Cue, mut it: Iter<'_, CommandLineToken>) -> Option<bool> {
+    while let Some(prop) = it.next() {
+        let val_token = it.next()?;
+        match prop {
+            CommandLineToken::Brightness => {
+                cue.brightness = if let CommandLineToken::ValueVal(c) = val_token {
+                    Some(*c)
+                } else if *val_token == CommandLineToken::Parent {
+                    None
+                } else {
+                    return None;
+                }
+            }
+            CommandLineToken::Color => {
+                cue.text_color = if let CommandLineToken::ColorVal(c) = val_token {
+                    Some(*c)
+                } else if *val_token == CommandLineToken::Parent {
+                    None
+                } else {
+                    return None;
+                }
+            }
+            CommandLineToken::Align => {
+                cue.text_align = if let CommandLineToken::AlignVal(c) = val_token {
+                    Some(*c)
+                } else if *val_token == CommandLineToken::Parent {
+                    None
+                } else {
+                    return None;
+                }
+            }
+            CommandLineToken::Transition => {
+                cue.fade_speed = if let CommandLineToken::TransitionVal(c) = val_token {
+                    Some(*c)
+                } else if *val_token == CommandLineToken::Parent {
+                    None
+                } else {
+                    return None;
+                }
+            }
+            _ => return None,
+        }
+    }
+    Some(true)
+}
+
+fn execute_edit_parent(app: &mut TekstApp, it: &mut Iter<'_, CommandLineToken>) -> Option<bool> {
+    let mut success = false;
+    while let Some(prop) = it.next() {
+        success = true;
+        match prop {
+            CommandLineToken::Brightness => {
+                app.global_style.brightness = if let CommandLineToken::ValueVal(c) = it.next()? {
+                    *c
+                } else {
+                    return None;
+                }
+            }
+            CommandLineToken::Color => {
+                app.global_style.text_color = if let CommandLineToken::ColorVal(c) = it.next()? {
+                    *c
+                } else {
+                    return None;
+                }
+            }
+            CommandLineToken::Align => {
+                app.global_style.text_align = if let CommandLineToken::AlignVal(c) = it.next()? {
+                    *c
+                } else {
+                    return None;
+                }
+            }
+            CommandLineToken::Transition => {
+                app.global_style.fade_speed = if let CommandLineToken::ValueVal(c) = it.next()?
+                    && *c < 10
+                {
+                    Transition::from(*c)
+                } else {
+                    return None;
+                }
+            }
+            _ => return None,
+        }
+    }
+    Some(success)
+}
+
+fn try_parse_seq_ident(app: &mut TekstApp, mut it: Iter<'_, CommandLineToken>) -> Option<usize> {
+    if let Some(CommandLineToken::Ident(s)) = it.next()
+        && let Ok(v) = s.parse::<usize>()
+    {
+        Some(v)
+    } else {
+        app.sequences.iter().position(Option::is_none)
+    }
+}
+
+fn parse_cue_ident(app: &mut TekstApp, it: &mut Iter<'_, CommandLineToken>) -> Option<Vec<usize>> {
+    println!("{:?}", it.clone());
+    let current_cue = app.selected_sequence()?;
+    let start_idx = parse_single_ident(it, current_cue)?;
+
+    let mut personal_it = it.clone();
+    if *personal_it.next()? == CommandLineToken::To {
+        it.next();
+
+        let end_idx = parse_single_ident(it, current_cue)?;
+        return Some((start_idx..=end_idx).collect::<Vec<usize>>());
+    }
+    Some(vec![start_idx])
+}
+
+fn parse_single_ident(it: &mut Iter<'_, CommandLineToken>, cue: &SequenceSlot) -> Option<usize> {
+    let CommandLineToken::Ident(ident) = it.next()? else {
+        return None;
+    };
+    Some(match ident.as_str() {
+        "<here>" => cue.sequence.cue_pointer,
+        "<mark>" => cue.sequence.find_next_mark(cue.sequence.cue_pointer)?,
+        _ => cue.sequence.find_ident(ident)?,
+    })
+}
+
 impl Display for CommandLine {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let mut s = String::new();
@@ -298,7 +408,7 @@ impl Display for CommandLine {
             s.push_str(&token.to_string());
             s.push(' ');
         }
-        write!(f, "{}", s)
+        write!(f, "{s}")
     }
 }
 
@@ -310,19 +420,22 @@ pub enum CommandLineToken {
     Goto,
     Delete,
     Seq,
-    Art,
     Cue,
-    PatchCue,
     Insert,
+    Append,
+    Split,
+    Merge,
+    To,
     Edit,
     Parent,
     Align,
     Color,
-    Fade,
+    Transition,
     Brightness,
     Ident(String),
     ColorVal(Color),
     ValueVal(u8),
+    TransitionVal(Transition),
     AlignVal(TextAlign),
 }
 
@@ -333,19 +446,22 @@ impl Display for CommandLineToken {
             Self::Goto => write!(f, "GOTO"),
             Self::Delete => write!(f, "DELETE"),
             Self::Seq => write!(f, "SEQ"),
-            Self::Art => write!(f, "ART"),
             Self::Cue => write!(f, "CUE"),
-            Self::PatchCue => write!(f, "PATCHCUE"),
+            Self::To => write!(f, "TO"),
             Self::Insert => write!(f, "INSERT"),
+            Self::Append => write!(f, "APPEND"),
+            Self::Split => write!(f, "SPLIT"),
+            Self::Merge => write!(f, "MERGE"),
             Self::Edit => write!(f, "EDIT"),
             Self::Parent => write!(f, "PARENT"),
             Self::Align => write!(f, "ALIGN"),
             Self::Color => write!(f, "COLOR"),
-            Self::Fade => write!(f, "FADE"),
+            Self::Transition => write!(f, "TRANSIT"),
             Self::Brightness => write!(f, "BRIGHT"),
             Self::Ident(s) => write!(f, "{}", s),
             Self::ColorVal(v) => write!(f, "{}", v),
             Self::ValueVal(v) => write!(f, "{}", v),
+            Self::TransitionVal(v) => write!(f, "{}", v),
             Self::AlignVal(v) => write!(f, "{}", v),
         }
     }
@@ -358,26 +474,38 @@ impl CommandLineToken {
         }
         match self {
             Self::CommandLineIndicator => {
-                matches!(f, Self::Goto | Self::Delete | Self::Edit | Self::Insert)
+                matches!(
+                    f,
+                    Self::Goto | Self::Delete | Self::Edit | Self::Insert | Self::Append
+                )
             }
-            Self::Goto => matches!(f, Self::Cue | Self::Seq | Self::Art | Self::PatchCue,),
-            Self::Delete => matches!(f, Self::Cue | Self::Seq | Self::Art | Self::PatchCue,),
+            Self::Goto => matches!(f, Self::Cue | Self::Seq),
+            Self::Delete => matches!(f, Self::Cue | Self::Seq),
             Self::Seq => matches!(f, Self::Ident(..)),
-            Self::Art => matches!(f, Self::Ident(..)),
             Self::Cue => matches!(f, Self::Ident(..)),
-            Self::PatchCue => {
-                matches!(f, Self::Ident(..))
-            }
-            Self::Insert => matches!(f, Self::Cue | Self::Seq | Self::Art | Self::PatchCue,),
-            Self::Edit => matches!(f, Self::Cue | Self::Art | Self::PatchCue | Self::Parent),
-            Self::Parent => matches!(f, Self::Align | Self::Color | Self::Brightness | Self::Fade),
+            Self::To => matches!(f, Self::Ident(..)),
+            Self::Insert => matches!(f, Self::Cue | Self::Seq),
+            Self::Append => matches!(f, Self::Cue),
+            Self::Split => matches!(f, Self::Cue),
+            Self::Merge => matches!(f, Self::Cue),
+            Self::Edit => matches!(f, Self::Cue | Self::Parent),
+            Self::Parent => matches!(
+                f,
+                Self::Align | Self::Color | Self::Brightness | Self::Transition
+            ),
             Self::Align => matches!(f, Self::AlignVal(..) | Self::Parent),
             Self::Color => matches!(f, Self::ColorVal(..) | Self::Parent),
-            Self::Fade => matches!(f, Self::ValueVal(..) | Self::Parent),
+            Self::Transition => matches!(f, Self::TransitionVal(..) | Self::Parent),
             Self::Brightness => matches!(f, Self::ValueVal(..) | Self::Parent),
-            Self::Ident(_) => !matches!(f, Self::Ident(..),),
-            Self::ColorVal(..) | Self::ValueVal(..) | Self::AlignVal(..) => {
-                matches!(f, Self::Align | Self::Fade | Self::Brightness | Self::Color)
+            Self::Ident(_) => !matches!(f, Self::Ident(..)),
+            Self::ColorVal(..)
+            | Self::ValueVal(..)
+            | Self::AlignVal(..)
+            | Self::TransitionVal(..) => {
+                matches!(
+                    f,
+                    Self::Align | Self::Transition | Self::Brightness | Self::Color
+                )
             }
         }
     }
