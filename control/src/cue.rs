@@ -1,8 +1,4 @@
 use crate::DISPLAY_NUM_LINES;
-
-// fixme: impl actual type for this
-type SMPTETimestamp = u8;
-
 #[derive(
     serde::Deserialize,
     serde::Serialize,
@@ -17,6 +13,8 @@ type SMPTETimestamp = u8;
 )]
 pub struct Cue {
     pub ident: String,
+    pub mark: Option<String>,
+    pub description: String,
     pub text: [String; DISPLAY_NUM_LINES],
     pub brightness: Option<u8>,
     pub fade_speed: Option<Transition>,
@@ -33,7 +31,7 @@ pub struct Cue {
 }
 
 impl Cue {
-    pub fn with_global_style(mut self, style: GlobalStyle) -> TextContent {
+    pub fn with_global_style(self, style: GlobalStyle) -> TextContent {
         TextContent {
             text: self.text.to_vec(),
             brightness: self
