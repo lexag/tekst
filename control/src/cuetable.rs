@@ -63,10 +63,6 @@ impl egui_table::TableDelegate for ScriptLineListDelegate<'_> {
         let rect = ui.max_rect();
         let x = rect.right();
         let stroke = ui.visuals().widgets.noninteractive.bg_stroke;
-        ui.painter()
-            .line_segment([pos2(x, rect.top()), pos2(x, rect.bottom())], stroke);
-        ui.painter()
-            .rect_stroke(rect, 2.0, stroke, egui::StrokeKind::Inside);
 
         let global_style = self.app.global_style;
 
@@ -75,14 +71,29 @@ impl egui_table::TableDelegate for ScriptLineListDelegate<'_> {
 
         let opmode = self.app.op_mode;
         if let Some(seq) = self.app.selected_sequence_mut() {
+            edge_strokes(ui, rect, x, stroke);
+
             if row_nr < EXTRA_ROWS_ABOVE {
                 return;
             }
+
             let cue_nr = row_nr.saturating_sub(EXTRA_ROWS_ABOVE);
             let this_is_selected = cue_nr as usize == seq.sequence.cue_pointer;
 
             if cue_nr >= seq.sequence.cues.len() as u64 {
                 return;
+            }
+
+            let cue = seq
+                .sequence
+                .cues
+                .get_mut(cue_nr as usize)
+                .expect("extra rows are handled");
+
+            if cue.autogo_delay_ms.is_some() || cue.autogo_timecode.is_some() {
+                ui.painter()
+                    .rect_filled(rect, 0.0, style::ACCENT_COLOR.gamma_multiply(0.2));
+                edge_strokes(ui, rect, x, stroke);
             }
 
             if this_is_selected {
@@ -93,11 +104,7 @@ impl egui_table::TableDelegate for ScriptLineListDelegate<'_> {
                     egui::StrokeKind::Inside,
                 );
             }
-            let cue = seq
-                .sequence
-                .cues
-                .get_mut(cue_nr as usize)
-                .expect("extra rows are handled");
+
             ui.centered_and_justified(|ui| {
                 match col_nr {
                     0 => {
@@ -189,6 +196,13 @@ impl egui_table::TableDelegate for ScriptLineListDelegate<'_> {
             }
         }
     }
+}
+
+fn edge_strokes(ui: &mut egui::Ui, rect: egui::Rect, x: f32, stroke: egui::Stroke) {
+    ui.painter()
+        .line_segment([pos2(x, rect.top()), pos2(x, rect.bottom())], stroke);
+    ui.painter()
+        .rect_stroke(rect, 2.0, stroke, egui::StrokeKind::Inside);
 }
 
 fn frameless_text(ui: &mut egui::Ui, interactive: bool, align: Align, text: &mut String) {

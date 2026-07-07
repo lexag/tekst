@@ -1,5 +1,6 @@
 use crate::{
     app::{PatchPointer, TekstApp},
+    autogo::{AutoGo, AutoGoOpMode},
     cmdline::CommandLineToken,
     cue::Cue,
 };
@@ -79,6 +80,7 @@ pub enum ActionID {
     CommandLineBackspace,
     CommandLineCancel,
     ToggleAutoscroll,
+    ToggleAutoGo,
     GoCue(Cue),
 }
 
@@ -124,6 +126,15 @@ pub fn exec_action(app: &mut TekstApp, action_id: ActionID) {
             let cmd = app.commandline.clone();
             cmd.execute(app);
             app.commandline.clear();
+        }
+        ActionID::ToggleAutoGo => {
+            if app.autogo.any_active() {
+                *app.autogo.follow.mode_mut() = AutoGoOpMode::Off;
+                *app.autogo.timecode.mode_mut() = AutoGoOpMode::Off;
+            } else {
+                *app.autogo.follow.mode_mut() = AutoGoOpMode::Ctrl;
+                *app.autogo.timecode.mode_mut() = AutoGoOpMode::Ctrl;
+            }
         }
         ActionID::CommandLineBackspace => app.commandline.backspace(),
         ActionID::CommandLineCancel => app.commandline.clear(),
@@ -188,6 +199,7 @@ pub fn all_default_shortcuts() -> ShortcutMap {
     shortcuts.add(ActionID::GoCue(Cue::default()), press(Key::Delete));
 
     shortcuts.add(ActionID::ToggleAutoscroll, press(Key::R));
+    shortcuts.add(ActionID::ToggleAutoGo, press(Key::T));
 
     shortcuts
 }

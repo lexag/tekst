@@ -106,6 +106,10 @@ impl AutoGoConsolidator {
     pub fn dry_go_happened(&mut self) {
         let _ = self.go_happened(Cue::default());
     }
+
+    pub fn any_active(&self) -> bool {
+        self.follow.mode != AutoGoOpMode::Off || self.timecode.mode != AutoGoOpMode::Off
+    }
 }
 
 #[derive(serde::Deserialize, serde::Serialize)]
