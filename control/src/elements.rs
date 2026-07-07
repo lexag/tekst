@@ -9,7 +9,7 @@ use std::{
 use tekst_common::primitive::Color;
 
 pub fn text_lines(
-    cue: &crate::cue::Cue,
+    cue: &mut crate::cue::Cue,
     ui: &mut egui::Ui,
     interactive: bool,
     global_style: GlobalStyle,
@@ -17,7 +17,7 @@ pub fn text_lines(
     ui.vertical(|ui| {
         ui.add_space(4.0);
         for i in 0..DISPLAY_NUM_LINES {
-            egui::TextEdit::singleline(&mut cue.text[i].clone())
+            egui::TextEdit::singleline(&mut cue.text[i])
                 .interactive(interactive)
                 .id_salt(ui.id().with(i))
                 .horizontal_align(

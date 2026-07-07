@@ -2,12 +2,15 @@ use egui::pos2;
 
 use crate::DISPLAY_NUM_LINES;
 
+use crate::app::OpMode;
 use crate::app::TekstApp;
 use crate::autogo;
 use crate::elements::color_with_default;
 use crate::elements::property_with_default;
 use crate::elements::text_lines;
 use egui::Align;
+use egui::Color32;
+use ks_common_ui::style;
 
 pub(crate) struct ScriptLineListDelegate<'a> {
     pub(crate) app: &'a mut TekstApp,
@@ -37,9 +40,10 @@ impl egui_table::TableDelegate for ScriptLineListDelegate<'_> {
     fn header_cell_ui(&mut self, ui: &mut egui::Ui, cell: &egui_table::HeaderCellInfo) {
         match cell.col_range.start {
             0 => ui.label("Line"),
-            2 => ui.label("Brightness / Fade"),
-            4 => ui.label("Design"),
-            7 => ui.label("Auto Follow"),
+            4 => ui.label("Brightness"),
+            5 => ui.label("Transition"),
+            6 => ui.label("Design"),
+            9 => ui.label("Auto"),
             _ => ui.label("N/A"),
         };
     }
@@ -61,6 +65,7 @@ impl egui_table::TableDelegate for ScriptLineListDelegate<'_> {
         let mut interaction_happened = false;
         let autofollow_progress = self.app.autogo.progress(&self.app.selected_cue());
 
+        let opmode = self.app.op_mode;
         if let Some(seq) = self.app.selected_sequence_mut() {
             if row_nr < EXTRA_ROWS_ABOVE {
                 return;
@@ -80,34 +85,61 @@ impl egui_table::TableDelegate for ScriptLineListDelegate<'_> {
                     egui::StrokeKind::Inside,
                 );
             }
-            let cue = &seq.sequence.cues[cue_nr as usize];
+            let cue = seq
+                .sequence
+                .cues
+                .get_mut(cue_nr as usize)
+                .expect("extra rows are handled");
             ui.centered_and_justified(|ui| {
                 match col_nr {
                     0 => {
-                        if ui.monospace(cue.ident.clone()).clicked() {
+                        if ui
+                            .monospace(egui::RichText::new(cue.ident.clone()).color(
+                                if cue.mark.is_some() {
+                                    style::ACCENT_COLOR
+                                } else {
+                                    Color32::PLACEHOLDER
+                                },
+                            ))
+                            .clicked()
+                        {
                             seq.sequence.cue_pointer = cue_nr as usize;
                             interaction_happened = true;
                         }
                     }
                     1 => {
-                        text_lines(cue, ui, false, global_style);
+                        if let Some(label) = &cue.mark {
+                            ui.label(label);
+                        }
                     }
                     2 => {
-                        property_with_default(ui, cue.brightness, &global_style.brightness);
+                        ui.horizontal_centered(|ui| {
+                            egui::TextEdit::multiline(&mut cue.description)
+                                .interactive(opmode == OpMode::Edit)
+                                .vertical_align(Align::Center)
+                                .desired_rows(2)
+                                .show(ui);
+                        });
                     }
                     3 => {
-                        property_with_default(ui, cue.fade_speed, &global_style.fade_speed);
+                        text_lines(cue, ui, opmode == OpMode::Edit, global_style);
                     }
                     4 => {
-                        color_with_default(ui, cue.text_color, &global_style.text_color);
+                        property_with_default(ui, cue.brightness, &global_style.brightness);
                     }
                     5 => {
-                        property_with_default(ui, cue.text_align, &global_style.text_align);
+                        property_with_default(ui, cue.fade_speed, &global_style.fade_speed);
                     }
                     6 => {
-                        property_with_default(ui, cue.text_font, &global_style.text_font);
+                        color_with_default(ui, cue.text_color, &global_style.text_color);
                     }
                     7 => {
+                        property_with_default(ui, cue.text_align, &global_style.text_align);
+                    }
+                    8 => {
+                        property_with_default(ui, cue.text_font, &global_style.text_font);
+                    }
+                    9 => {
                         if let Some(val) = cue.autogo_delay_ms {
                             ui.monospace(format!(
                                 "{:.3} s",
@@ -120,7 +152,7 @@ impl egui_table::TableDelegate for ScriptLineListDelegate<'_> {
                             ));
                         };
                     }
-                    8 => {
+                    10 => {
                         if let Some(val) = cue.autogo_timecode {
                             ui.monospace(val.to_string());
                         };
@@ -145,11 +177,13 @@ pub fn cue_table(app: &mut TekstApp, ui: &mut egui::Ui) {
     let mut table = egui_table::Table::new()
         .headers([egui_table::HeaderRow {
             height: 32.0,
-            groups: vec![(0..2), (2..4), (4..7), (7..9)],
+            groups: vec![(0..4), (4..6), (6..9), (9..11)],
         }])
-        .num_sticky_cols(2)
+        .num_sticky_cols(1)
         .columns([
             egui_table::Column::new(64.0).resizable(false),
+            egui_table::Column::new(64.0).resizable(false),
+            egui_table::Column::new(256.0).resizable(false),
             egui_table::Column::new(256.0).resizable(false),
             egui_table::Column::new(64.0).resizable(false),
             egui_table::Column::new(64.0).resizable(false),
@@ -164,7 +198,7 @@ pub fn cue_table(app: &mut TekstApp, ui: &mut egui::Ui) {
         if autoscroll {
             table = table.scroll_to_row(
                 (seq.sequence.cue_pointer as u64).saturating_add(EXTRA_ROWS_ABOVE),
-                Some(Align::Center),
+                Some(Align::Min),
             );
         }
         table =

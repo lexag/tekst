@@ -49,6 +49,7 @@ pub enum OpMode {
     #[default]
     Demo,
     Live,
+    Edit,
 }
 
 impl Display for OpMode {
@@ -56,6 +57,7 @@ impl Display for OpMode {
         match self {
             OpMode::Demo => write!(f, "Demo"),
             OpMode::Live => write!(f, "Live"),
+            OpMode::Edit => write!(f, "Edit"),
         }
     }
 }
@@ -65,13 +67,14 @@ impl InlineWidgetAutoEnum for OpMode {
     where
         Self: Sized + Display,
     {
-        vec![Self::Demo, Self::Live]
+        vec![Self::Demo, Self::Live, Self::Edit]
     }
 
     fn color(&self) -> Option<Color32> {
         match self {
             OpMode::Demo => Some(ks_common_ui::style::WARNING_COLOR),
             OpMode::Live => Some(ks_common_ui::style::ACCENT_COLOR),
+            OpMode::Edit => Some(ks_common_ui::style::WARNING_COLOR),
         }
     }
 
