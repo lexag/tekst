@@ -135,7 +135,7 @@ impl CommandLine {
                 }
             }
             CommandLineToken::Seq => {
-                if !(1..=4).contains(&ident_parsed?) {
+                if !(1..=12).contains(&ident_parsed?) {
                     return None;
                 }
                 app.selected_sequence_idx = ident_parsed? - 1;
