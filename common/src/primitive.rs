@@ -56,48 +56,33 @@ impl InlineWidgetAutoEnum for Font {
 )]
 pub enum Transition {
     #[default]
-    NoFade = 0x0,
-    Speed1 = 0x1,
-    Speed2 = 0x2,
-    Speed3 = 0x3,
-    Speed4 = 0x4,
-    Speed5 = 0x5,
-    Speed6 = 0x6,
-    Speed7 = 0x7,
-    Speed8 = 0x8,
-    Speed9 = 0x9,
-}
-
-impl Display for Transition {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Transition::NoFade => write!(f, "No Fade"),
-            Transition::Speed1 => write!(f, "A seconds"),
-            Transition::Speed2 => write!(f, "B seconds"),
-            Transition::Speed3 => write!(f, "C seconds"),
-            Transition::Speed4 => write!(f, "D seconds"),
-            Transition::Speed5 => write!(f, "E seconds"),
-            Transition::Speed6 => write!(f, "F seconds"),
-            Transition::Speed7 => write!(f, "G seconds"),
-            Transition::Speed8 => write!(f, "H seconds"),
-            Transition::Speed9 => write!(f, "I seconds"),
-        }
-    }
+    NoTransition,
+    FadeFast,
+    FadeMedium,
+    FadeSlow,
+    FadeVerySlow,
 }
 
 impl From<u8> for Transition {
     fn from(value: u8) -> Self {
         match value {
-            1 => Transition::Speed1,
-            2 => Transition::Speed2,
-            3 => Transition::Speed3,
-            4 => Transition::Speed4,
-            5 => Transition::Speed5,
-            6 => Transition::Speed6,
-            7 => Transition::Speed7,
-            8 => Transition::Speed8,
-            9 => Transition::Speed9,
-            _ => Transition::NoFade,
+            1 => Self::FadeFast,
+            2 => Self::FadeMedium,
+            3 => Self::FadeSlow,
+            4 => Self::FadeVerySlow,
+            _ => Self::NoTransition,
+        }
+    }
+}
+
+impl Display for Transition {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Transition::NoTransition => write!(f, "No Transition"),
+            Transition::FadeFast => write!(f, "Fast Fade"),
+            Transition::FadeMedium => write!(f, "Medium Fade"),
+            Transition::FadeSlow => write!(f, "Slow Fade"),
+            Transition::FadeVerySlow => write!(f, "Very slow Fade"),
         }
     }
 }
@@ -109,31 +94,21 @@ impl InlineWidgetAutoEnum for Transition {
         Self: Sized + Display,
     {
         vec![
-            Self::NoFade,
-            Self::Speed1,
-            Self::Speed2,
-            Self::Speed3,
-            Self::Speed4,
-            Self::Speed5,
-            Self::Speed6,
-            Self::Speed7,
-            Self::Speed8,
-            Self::Speed9,
+            Self::NoTransition,
+            Self::FadeFast,
+            Self::FadeMedium,
+            Self::FadeSlow,
+            Self::FadeVerySlow,
         ]
     }
 
     fn text(&self) -> Option<String> {
         match self {
-            Transition::NoFade => Some("0.0s".to_string()),
-            Transition::Speed1 => Some("A.As".to_string()),
-            Transition::Speed2 => Some("B.Bs".to_string()),
-            Transition::Speed3 => Some("C.Cs".to_string()),
-            Transition::Speed4 => Some("D.Ds".to_string()),
-            Transition::Speed5 => Some("E.Es".to_string()),
-            Transition::Speed6 => Some("F.Fs".to_string()),
-            Transition::Speed7 => Some("G.Gs".to_string()),
-            Transition::Speed8 => Some("H.Hs".to_string()),
-            Transition::Speed9 => Some("I.Is".to_string()),
+            Transition::NoTransition => Some("None".to_string()),
+            Transition::FadeFast => Some("FastF".to_string()),
+            Transition::FadeMedium => Some("MedmF".to_string()),
+            Transition::FadeSlow => Some("SlowF".to_string()),
+            Transition::FadeVerySlow => Some("VSlwF".to_string()),
         }
     }
 }
