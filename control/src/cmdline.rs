@@ -123,22 +123,20 @@ impl CommandLine {
 
     fn execute_goto(&self, app: &mut TekstApp, mut it: Iter<CommandLineToken>) -> Option<bool> {
         let ident_type = it.next()?;
-        let CommandLineToken::Ident(ident) = it.next()? else {
-            return None;
-        };
-        let ident_parsed: Option<usize> = ident.parse().ok();
         match ident_type {
             CommandLineToken::Cue => {
+                let idx = parse_single_ident(&mut it, app.selected_sequence()?)?;
                 if let Some(seq) = app.selected_sequence_mut() {
-                    seq.sequence.goto_ident(ident);
+                    seq.sequence.cue_pointer = idx;
                     app.autogo.dry_go_happened();
                 }
             }
             CommandLineToken::Seq => {
-                if !(1..=12).contains(&ident_parsed?) {
+                let ident_parsed = try_parse_seq_ident(app, it)?;
+                if !(1..=12).contains(&ident_parsed) {
                     return None;
                 }
-                app.selected_sequence_idx = ident_parsed? - 1;
+                app.selected_sequence_idx = ident_parsed - 1;
                 app.autogo.dry_go_happened();
             }
             _ => return Some(false),
