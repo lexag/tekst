@@ -39,7 +39,7 @@ impl DisplayBuffer {
         if col.g() {
             img.greens.fill();
         }
-        img.brightnesses.fill(bright);
+        img.brightnesses.fill(255 - bright);
         img
     }
 
@@ -64,6 +64,8 @@ impl DisplayBuffer {
         img.reds.bits[BitBuffer::idx(Self::MID_LR + 8, Self::MID_TB + 2)] =
             (((DISPLAY_HEIGHT & 0xFF00) >> 8) as u8).reverse_bits();
         img.greens.rect(Self::MID_LR - 5, Self::MID_TB - 1, 1, 5);
+
+        img.brightnesses.fill(0);
 
         img
     }
@@ -242,20 +244,21 @@ impl TextRenderer {
 
         let mut img = DisplayBuffer::new();
 
-        self.metarender(text, |rect, color| {
+        self.metarender(text, |rect, color, bright| {
             if color.r() {
                 img.reds.rect(rect.x, rect.y, rect.w, rect.h);
             }
             if color.g() {
                 img.greens.rect(rect.x, rect.y, rect.w, rect.h);
             }
+            img.brightnesses.fill(255 - bright);
         });
         img
     }
 
     pub fn metarender<F>(&mut self, text: TextContent, mut render_closure: F)
     where
-        F: FnMut(BoundingBox, Color),
+        F: FnMut(BoundingBox, Color, u8),
     {
         for (i, line) in text.text.iter().enumerate() {
             let glyphs = line.chars().filter_map(|c| self.glyphs.get(&c));
@@ -282,6 +285,7 @@ impl TextRenderer {
                             ..*rect
                         },
                         text.color,
+                        text.brightness,
                     );
                 }
                 horizontal_cursor = (horizontal_cursor as i32 + glyph.postpad).max(0) as usize;

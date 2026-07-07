@@ -1,4 +1,4 @@
-const DISPLAY_WIDTH: usize = 488;
+const DISPLAY_WIDTH: usize = 448;
 const DISPLAY_HEIGHT: usize = 32;
 
 #[cfg(feature = "desktop")]
