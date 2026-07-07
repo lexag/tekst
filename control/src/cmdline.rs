@@ -228,6 +228,9 @@ impl CommandLine {
         for i in (0..tokens.len()).rev() {
             if let Some(new_tokens) = Self::autoreplace_lookup(&tokens[i..]) {
                 tokens.resize(tokens.len() - i, CommandLineToken::CommandLineIndicator);
+                if i >= tokens.len() {
+                    continue;
+                }
                 *tokens = tokens[..i].to_vec();
                 tokens.extend(new_tokens);
             }
@@ -395,7 +398,7 @@ fn parse_single_ident(it: &mut Iter<'_, CommandLineToken>, cue: &SequenceSlot) -
         return None;
     };
     Some(match ident.as_str() {
-        "<here>" => cue.sequence.cue_pointer,
+        "<this>" => cue.sequence.cue_pointer,
         "<mark>" => cue.sequence.find_next_mark(cue.sequence.cue_pointer)?,
         _ => cue.sequence.find_ident(ident)?,
     })
@@ -497,7 +500,15 @@ impl CommandLineToken {
             Self::Color => matches!(f, Self::ColorVal(..) | Self::Parent),
             Self::Transition => matches!(f, Self::TransitionVal(..) | Self::Parent),
             Self::Brightness => matches!(f, Self::ValueVal(..) | Self::Parent),
-            Self::Ident(_) => !matches!(f, Self::Ident(..)),
+            Self::Ident(_) => !matches!(
+                f,
+                Self::Ident(..)
+                    | Self::Goto
+                    | Self::Delete
+                    | Self::Append
+                    | Self::Insert
+                    | Self::Edit
+            ),
             Self::ColorVal(..)
             | Self::ValueVal(..)
             | Self::AlignVal(..)

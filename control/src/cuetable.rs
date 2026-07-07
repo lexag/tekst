@@ -38,14 +38,23 @@ impl egui_table::TableDelegate for ScriptLineListDelegate<'_> {
     }
 
     fn header_cell_ui(&mut self, ui: &mut egui::Ui, cell: &egui_table::HeaderCellInfo) {
-        match cell.col_range.start {
-            0 => ui.label("Line"),
-            4 => ui.label("Brightness"),
-            5 => ui.label("Transition"),
-            6 => ui.label("Design"),
-            9 => ui.label("Auto"),
-            _ => ui.label("N/A"),
-        };
+        ui.horizontal(|ui| {
+            ui.add_space(4.0);
+            ui.label(match cell.col_range.start {
+                0 => "Line",
+                1 => "Mark",
+                2 => "Description",
+                3 => "Content",
+                4 => "Brightness",
+                5 => "Transition",
+                6 => "Color",
+                7 => "Align",
+                8 => "Font",
+                9 => "AFW",
+                10 => "ATC",
+                _ => "N/A",
+            });
+        });
     }
 
     fn cell_ui(&mut self, ui: &mut egui::Ui, cell: &egui_table::CellInfo) {
@@ -93,7 +102,14 @@ impl egui_table::TableDelegate for ScriptLineListDelegate<'_> {
             ui.centered_and_justified(|ui| {
                 match col_nr {
                     0 => {
-                        if ui
+                        if opmode == OpMode::Edit {
+                            frameless_text(
+                                ui,
+                                opmode == OpMode::Edit,
+                                Align::Center,
+                                &mut cue.ident,
+                            );
+                        } else if ui
                             .monospace(egui::RichText::new(cue.ident.clone()).color(
                                 if cue.mark.is_some() {
                                     style::ACCENT_COLOR
@@ -108,18 +124,21 @@ impl egui_table::TableDelegate for ScriptLineListDelegate<'_> {
                         }
                     }
                     1 => {
-                        if let Some(label) = &cue.mark {
-                            ui.label(label);
+                        let mut text = cue.mark.clone().unwrap_or_default();
+                        frameless_text(ui, opmode == OpMode::Edit, Align::Center, &mut text);
+                        if text.is_empty() {
+                            cue.mark = None;
+                        } else {
+                            cue.mark = Some(text);
                         }
                     }
                     2 => {
-                        ui.horizontal_centered(|ui| {
-                            egui::TextEdit::multiline(&mut cue.description)
-                                .interactive(opmode == OpMode::Edit)
-                                .vertical_align(Align::Center)
-                                .desired_rows(2)
-                                .show(ui);
-                        });
+                        frameless_text(
+                            ui,
+                            opmode == OpMode::Edit,
+                            Align::Center,
+                            &mut cue.description,
+                        );
                     }
                     3 => {
                         text_lines(cue, ui, opmode == OpMode::Edit, global_style);
@@ -173,11 +192,23 @@ impl egui_table::TableDelegate for ScriptLineListDelegate<'_> {
     }
 }
 
+fn frameless_text(ui: &mut egui::Ui, interactive: bool, align: Align, text: &mut String) {
+    ui.horizontal_centered(|ui| {
+        egui::TextEdit::multiline(text)
+            .interactive(interactive)
+            .vertical_align(align)
+            .desired_width(ui.available_width())
+            .frame(false)
+            .desired_rows(1)
+            .show(ui);
+    });
+}
+
 pub fn cue_table(app: &mut TekstApp, ui: &mut egui::Ui) {
     let mut table = egui_table::Table::new()
         .headers([egui_table::HeaderRow {
             height: 32.0,
-            groups: vec![(0..4), (4..6), (6..9), (9..11)],
+            groups: vec![],
         }])
         .num_sticky_cols(1)
         .columns([
@@ -198,8 +229,9 @@ pub fn cue_table(app: &mut TekstApp, ui: &mut egui::Ui) {
         if autoscroll {
             table = table.scroll_to_row(
                 (seq.sequence.cue_pointer as u64).saturating_add(EXTRA_ROWS_ABOVE),
-                Some(Align::Min),
+                Some(Align::Center),
             );
+            table = table.scroll_to_column(0, Some(Align::Min));
         }
         table =
             table.num_rows(seq.sequence.cues.len() as u64 + EXTRA_ROWS_ABOVE + EXTRA_ROWS_BELOW);
@@ -211,5 +243,5 @@ pub fn cue_table(app: &mut TekstApp, ui: &mut egui::Ui) {
         .dragged()
     {
         app.autoscroll = false;
-    };
+    }
 }

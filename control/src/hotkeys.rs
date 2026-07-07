@@ -205,7 +205,7 @@ fn add_commandline_shortcuts(shortcuts: &mut ShortcutMap) -> Option<()> {
     shortcuts.add(ActionID::CommandLineCancel, press(Key::Escape));
 
     shortcuts.add(
-        ActionID::CommandLineAppendToken(CommandLineToken::Ident("<here>".to_string())),
+        ActionID::CommandLineAppendToken(CommandLineToken::Ident("<this>".to_string())),
         press(Key::Backtick),
     );
     shortcuts.add(
