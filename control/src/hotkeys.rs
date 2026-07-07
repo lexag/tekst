@@ -15,7 +15,7 @@ pub struct ShortcutMap {
     map: HashMap<ActionID, usize>,
 }
 
-const CMDLINE_HOTKEYS: [(CommandLineToken, Key); 15] = [
+const CMDLINE_HOTKEYS: [(CommandLineToken, Key); 16] = [
     (CommandLineToken::Goto, Key::G),
     (CommandLineToken::Delete, Key::D),
     (CommandLineToken::Seq, Key::S),
@@ -29,6 +29,7 @@ const CMDLINE_HOTKEYS: [(CommandLineToken, Key); 15] = [
     (CommandLineToken::Parent, Key::P),
     (CommandLineToken::Align, Key::X),
     (CommandLineToken::Color, Key::C),
+    (CommandLineToken::Time, Key::Z),
     (CommandLineToken::Transition, Key::V),
     (CommandLineToken::Brightness, Key::B),
 ];

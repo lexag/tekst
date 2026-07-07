@@ -319,6 +319,12 @@ fn execute_edit_cue(cue: &mut Cue, mut it: Iter<'_, CommandLineToken>) -> Option
                     return None;
                 }
             }
+            CommandLineToken::Time => {
+                if *val_token == CommandLineToken::Parent {
+                    cue.autogo_delay_ms = None;
+                    cue.autogo_timecode = None;
+                }
+            }
             _ => return None,
         }
     }
@@ -432,6 +438,7 @@ pub enum CommandLineToken {
     Align,
     Color,
     Transition,
+    Time,
     Brightness,
     Ident(String),
     ColorVal(Color),
@@ -457,6 +464,7 @@ impl Display for CommandLineToken {
             Self::Parent => write!(f, "PARENT"),
             Self::Align => write!(f, "ALIGN"),
             Self::Color => write!(f, "COLOR"),
+            Self::Time => write!(f, "TIME"),
             Self::Transition => write!(f, "TRANSIT"),
             Self::Brightness => write!(f, "BRIGHT"),
             Self::Ident(s) => write!(f, "{}", s),
@@ -496,6 +504,7 @@ impl CommandLineToken {
             ),
             Self::Align => matches!(f, Self::AlignVal(..) | Self::Parent),
             Self::Color => matches!(f, Self::ColorVal(..) | Self::Parent),
+            Self::Time => matches!(f, Self::Parent),
             Self::Transition => matches!(f, Self::TransitionVal(..) | Self::Parent),
             Self::Brightness => matches!(f, Self::ValueVal(..) | Self::Parent),
             Self::Ident(_) => !matches!(

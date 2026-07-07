@@ -4,7 +4,6 @@ use crate::DISPLAY_NUM_LINES;
 
 use crate::app::OpMode;
 use crate::app::TekstApp;
-use crate::autogo;
 use crate::elements::color_with_default;
 use crate::elements::property_with_default;
 use crate::elements::text_lines;
@@ -231,7 +230,7 @@ pub fn cue_table(app: &mut TekstApp, ui: &mut egui::Ui) {
                 (seq.sequence.cue_pointer as u64).saturating_add(EXTRA_ROWS_ABOVE),
                 Some(Align::Center),
             );
-            table = table.scroll_to_column(0, Some(Align::Min));
+            table = table.scroll_to_column(0, Some(Align::Center));
         }
         table =
             table.num_rows(seq.sequence.cues.len() as u64 + EXTRA_ROWS_ABOVE + EXTRA_ROWS_BELOW);
