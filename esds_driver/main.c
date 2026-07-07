@@ -31,7 +31,7 @@ const uint32_t display_pins[10] = {5 - PIN_BASE, 6 - PIN_BASE, 8 - PIN_BASE, 7 -
 
 #define NUM_DISPLAYS 2
 #define DISPLAY_HEIGHT 16
-#define DISPLAY_WIDTH 488
+#define DISPLAY_WIDTH 448
 #define COLOR_DEPTH 2
 #define SCAN_ROWS 17
 #define RESET_ROW 0
