@@ -61,7 +61,7 @@ impl ShortcutMap {
     Hash, PartialEq, Eq, PartialOrd, Ord, serde::Deserialize, serde::Serialize, Clone, Debug,
 )]
 pub enum ActionID {
-    ChangePatch(PatchPointer),
+    ChangeSequence(usize),
     Go,
     SelectCueUp(usize),
     SelectCueDown(usize),
@@ -81,11 +81,8 @@ pub enum ActionID {
 #[allow(clippy::too_many_lines)]
 pub fn exec_action(app: &mut TekstApp, action_id: ActionID) {
     match action_id {
-        ActionID::ChangePatch(pointer) => {
-            app.patch_pointer = pointer;
-            if let PatchPointer::Sequence(i) = pointer {
-                app.selected_sequence_idx = i;
-            }
+        ActionID::ChangeSequence(pointer) => {
+            app.selected_sequence_idx = pointer;
             app.autogo.dry_go_happened();
         }
         ActionID::Go => app.go(),

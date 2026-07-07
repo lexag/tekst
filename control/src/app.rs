@@ -88,9 +88,8 @@ pub struct TekstApp {
     pub file_dialog: FileDialog,
     #[serde(skip)]
     pub ctx: egui::Context,
-    pub sequences: [Option<SequenceSlot>; 4],
+    pub sequences: [Option<SequenceSlot>; 12],
     pub selected_sequence_idx: usize,
-    pub patch_pointer: PatchPointer,
     pub file_pick_pointer: PatchPointer,
     pub global_style: GlobalStyle,
     #[serde(skip)]
@@ -117,7 +116,6 @@ impl Default for TekstApp {
             ctx: ctx.clone(),
             sequences: Default::default(),
             selected_sequence_idx: Default::default(),
-            patch_pointer: Default::default(),
             file_pick_pointer: Default::default(),
             global_style: Default::default(),
             live_content: Default::default(),
@@ -244,29 +242,19 @@ impl TekstApp {
     }
 
     fn swap_live_cue(&mut self, _new_cue: Cue) {
-        match self.patch_pointer {
-            PatchPointer::Sequence(..) => {
-                if let Some(seq) = self.selected_sequence() {
-                    seq.sequence.cue_pointer += 1;
-                    seq.sequence.cue_pointer %= seq.sequence.cues.len();
-                    self.autoscroll = true;
-                }
-            }
-            _ => self.patch_pointer = PatchPointer::Blank,
+        if let Some(seq) = self.selected_sequence_mut() {
+            seq.sequence.cue_pointer += 1;
+            seq.sequence.cue_pointer %= seq.sequence.cues.len();
+            self.autoscroll = true;
         }
     }
 
     pub fn selected_cue_mut(&mut self) -> &mut Cue {
-        match self.patch_pointer {
-            PatchPointer::Sequence(idx) => {
-                let sequence = self.sequences[idx].as_mut();
-                if let Some(seq) = sequence {
-                    &mut seq.sequence.cues[seq.sequence.cue_pointer]
-                } else {
-                    &mut self.default_cue
-                }
-            }
-            _ => &mut self.default_cue,
+        let sequence = self.sequences[self.selected_sequence_idx].as_mut();
+        if let Some(seq) = sequence {
+            &mut seq.sequence.cues[seq.sequence.cue_pointer]
+        } else {
+            &mut self.default_cue
         }
     }
 
@@ -277,22 +265,21 @@ impl TekstApp {
     }
 
     pub fn selected_cue(&self) -> &Cue {
-        match self.patch_pointer {
-            PatchPointer::Sequence(idx) => {
-                let sequence = &self.sequences[idx];
-                if let Some(seq) = sequence {
-                    &seq.sequence.cues[seq.sequence.cue_pointer]
-                } else {
-                    &self.default_cue
-                }
-            }
-            _ => &self.default_cue,
+        let sequence = &self.sequences[self.selected_sequence_idx];
+        if let Some(seq) = sequence {
+            &seq.sequence.cues[seq.sequence.cue_pointer]
+        } else {
+            &self.default_cue
         }
     }
 
-    pub fn load_sequence_file(&mut self, sequence_idx: usize) {
+    pub fn load_sequence_file(&mut self, sequence_idx: usize) -> bool {
+        if sequence_idx >= self.sequences.len() {
+            return false;
+        };
         self.file_pick_pointer = PatchPointer::Sequence(sequence_idx);
         self.file_dialog.pick_file();
+        true
     }
 
     pub fn save_sequence(&mut self, sequence_idx: usize) {
@@ -309,32 +296,30 @@ impl TekstApp {
             let button_response = matrix_button(
                 ui,
                 &seq.sequence.name,
-                if let PatchPointer::Sequence(seq_idx) = self.patch_pointer
-                    && seq_idx == i
-                {
+                if self.selected_sequence_idx == i {
                     true
                 } else {
                     false
                 },
+                (i + 1).to_string(),
             );
 
             if button_response.clicked() {
-                self.patch_pointer = PatchPointer::Sequence(i);
                 self.selected_sequence_idx = i;
             }
             button_response
         } else {
             let msg: &str = "LOAD SEQ";
-            matrix_button(ui, msg, false)
+            matrix_button(ui, msg, false, (i + 1).to_string())
         };
         if button_response.secondary_clicked() {
-            self.load_sequence_file(i)
+            self.load_sequence_file(i);
         }
     }
 
     fn sequences_matrix(&mut self, ui: &mut egui::Ui) {
         ui.heading("Sequences");
-        ui.horizontal(|ui| {
+        ui.horizontal_wrapped(|ui| {
             for i in 0..self.sequences.len() {
                 self.sequence_button(ui, i);
             }
@@ -444,11 +429,17 @@ impl TekstApp {
     }
 }
 
-fn matrix_button(ui: &mut egui::Ui, msg: &str, selected: bool) -> egui::Response {
+fn matrix_button(
+    ui: &mut egui::Ui,
+    msg: &str,
+    selected: bool,
+    help_text: String,
+) -> egui::Response {
     ui.add(
         egui::Button::new(msg)
             .wrap()
             .min_size(MATRIX_BUTTON_SIZE.into())
+            .shortcut_text(help_text)
             .selected(selected),
     )
 }
@@ -608,13 +599,6 @@ impl eframe::App for TekstApp {
                 });
                 ui.separator();
                 ui.vertical(|ui| {
-                    ui.heading("Toolbar");
-                    ui.horizontal(|ui| {
-                        if matrix_button(ui, "GO", false).clicked() {
-                            self.go();
-                        }
-                    });
-                    ui.separator();
                     self.sequences_matrix(ui);
                 });
             });
