@@ -49,7 +49,7 @@ impl InlineWidgetAutoEnum for AutoGoOpMode {
     fn color(&self) -> Option<egui::Color32> {
         match self {
             AutoGoOpMode::Off => None,
-            AutoGoOpMode::Ctrl => Some(ks_common_ui::style::ACCENT_COLOR),
+            AutoGoOpMode::Ctrl => Some(ks_common_ui::style::ACTIVE_COLOR),
             AutoGoOpMode::Learn => Some(ks_common_ui::style::WARNING_COLOR),
         }
     }

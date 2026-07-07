@@ -9,12 +9,14 @@ use crate::{
     sequence::{Sequence, SequenceSlot},
 };
 use egui::{
-    Align, Align2, Color32, Context, FontId, Layout, Pos2, Rect, RichText, Sense, TextStyle, Widget,
+    Align, Align2, Color32, Context, FontId, Layout, Pos2, Rect, RichText, Sense, Stroke,
+    StrokeKind, TextStyle, Widget,
 };
 use egui_file_dialog::FileDialog;
 use ks_common_ui::{
     autoenum::InlineWidgetAutoEnum,
     component_interface::{ConfigurationWidget, InlineWidget, InlineWidgetMenu},
+    style,
 };
 use std::{f32, fmt::Display};
 use tekst_common::{
@@ -136,7 +138,7 @@ impl Default for TekstApp {
     }
 }
 
-const MATRIX_BUTTON_SIZE: (f32, f32) = (196.0, 96.0);
+const MATRIX_BUTTON_SIZE: (f32, f32) = (224.0, 64.0);
 
 impl TekstApp {
     /// Called once before the first frame.
@@ -299,37 +301,53 @@ impl TekstApp {
     }
 
     fn sequence_button(&mut self, ui: &mut egui::Ui, i: usize) {
-        let sequence = &self.sequences[i];
-        let button_response = if let Some(seq) = sequence {
-            let button_response = matrix_button(
+        ui.vertical(|ui| {
+            let sequence = &self.sequences[i];
+            let cue = if let Some(seq) = sequence {
+                seq.sequence.cues[seq.sequence.cue_pointer].clone()
+            } else {
+                Cue::default()
+            };
+            render_screen_preview(
                 ui,
-                &seq.sequence.name,
-                if self.selected_sequence_idx == i {
-                    true
-                } else {
-                    false
-                },
-                (i + 1).to_string(),
+                &cue.clone().with_global_style(self.global_style),
+                true,
+                12.0,
+                MATRIX_BUTTON_SIZE.0,
+                cue.autogo_timecode.is_some() || cue.autogo_delay_ms.is_some(),
             );
 
-            if button_response.clicked() {
-                self.selected_sequence_idx = i;
+            let button_response = if let Some(seq) = sequence {
+                let button_response = matrix_button(
+                    ui,
+                    &seq.sequence.name,
+                    self.selected_sequence_idx == i,
+                    (i + 1).to_string(),
+                );
+
+                if button_response.clicked() {
+                    self.selected_sequence_idx = i;
+                }
+                button_response
+            } else {
+                let msg: &str = "LOAD SEQ";
+                matrix_button(ui, msg, false, (i + 1).to_string())
+            };
+            if button_response.secondary_clicked() {
+                self.load_sequence_file(i);
             }
-            button_response
-        } else {
-            let msg: &str = "LOAD SEQ";
-            matrix_button(ui, msg, false, (i + 1).to_string())
-        };
-        if button_response.secondary_clicked() {
-            self.load_sequence_file(i);
-        }
+        });
     }
 
     fn sequences_matrix(&mut self, ui: &mut egui::Ui) {
         ui.heading("Sequences");
-        ui.horizontal_wrapped(|ui| {
-            for i in 0..self.sequences.len() {
-                self.sequence_button(ui, i);
+        ui.vertical(|ui| {
+            for i in 0..3 {
+                ui.horizontal_wrapped(|ui| {
+                    for j in i * 4..(i + 1) * 4 {
+                        self.sequence_button(ui, j);
+                    }
+                });
             }
         });
     }
@@ -588,7 +606,6 @@ impl eframe::App for TekstApp {
 
         egui::SidePanel::right("cuetable")
             .resizable(false)
-            .exact_width(960.0)
             .show(ctx, |ui| {
                 self.global_settings_bar(ui);
                 ui.separator();
@@ -600,10 +617,23 @@ impl eframe::App for TekstApp {
             ui.vertical(|ui| {
                 ui.vertical(|ui| {
                     ui.heading("DISPLAY PROGRAM");
-                    render_screen_preview(ui, &self.live_content, false);
+                    render_screen_preview(ui, &self.live_content, false, 48.0, 950.0, false);
                     self.go_flasher(ui);
                     ui.heading("DISPLAY PREVIEW");
-                    render_screen_preview(ui, &self.selected_cue_with_global(), true);
+                    render_screen_preview(
+                        ui,
+                        &self.selected_cue_with_global(),
+                        true,
+                        48.0,
+                        950.0,
+                        false,
+                    );
+                    ui.separator();
+                    ui.heading("Description");
+                    egui::TextEdit::multiline(&mut self.selected_cue().description.clone())
+                        .interactive(false)
+                        .desired_width(f32::INFINITY)
+                        .ui(ui);
                 });
                 ui.separator();
                 ui.vertical(|ui| {
@@ -614,14 +644,21 @@ impl eframe::App for TekstApp {
     }
 }
 
-fn render_screen_preview(ui: &mut egui::Ui, content: &TextContent, peek_brightness: bool) {
-    fn text_anchor(rect: Rect, idx: usize, align: TextAlign) -> Pos2 {
-        const EDGE_SPACING_VERTICAL: f32 = 5.0;
+fn render_screen_preview(
+    ui: &mut egui::Ui,
+    content: &TextContent,
+    peek_brightness: bool,
+    font_size: f32,
+    width: f32,
+    border: bool,
+) {
+    fn text_anchor(rect: Rect, idx: usize, align: TextAlign, font_size: f32) -> Pos2 {
         const EDGE_SPACING_HORIZONTAL: f32 = 10.0;
+        let edge_spacing_vertical: f32 = font_size * 0.1;
         let y = if idx == 0 {
-            rect.top() + EDGE_SPACING_VERTICAL
+            rect.top() + edge_spacing_vertical
         } else {
-            rect.bottom() - EDGE_SPACING_VERTICAL
+            rect.bottom() - edge_spacing_vertical
         };
         let x = match align {
             TextAlign::Left => rect.left() + EDGE_SPACING_HORIZONTAL,
@@ -642,15 +679,15 @@ fn render_screen_preview(ui: &mut egui::Ui, content: &TextContent, peek_brightne
         Align2((hor, vert).into())
     }
 
-    let (resp, p) = ui.allocate_painter((ui.available_width(), 128.0).into(), Sense::CLICK);
+    let (resp, p) = ui.allocate_painter((width, font_size * 2.5).into(), Sense::CLICK);
     p.rect_filled(resp.rect, 10.0, Color32::BLACK);
     let align = content.align;
     let brightness_factor = content.brightness as f32 / 255.0;
     for idx in [0, 1] {
-        let anchor = text_anchor(resp.rect, idx, align);
+        let anchor = text_anchor(resp.rect, idx, align, font_size);
         let alignment = text_align(resp.rect, idx, align);
         let text = content.text[idx].clone();
-        let font_id = FontId::new(48.0, egui::FontFamily::Proportional);
+        let font_id = FontId::new(font_size, egui::FontFamily::Proportional);
         p.text(
             anchor,
             alignment,
@@ -671,6 +708,15 @@ fn render_screen_preview(ui: &mut egui::Ui, content: &TextContent, peek_brightne
                     .gamma_multiply((0.5 - content.brightness as f32 / 255.0).max(0.0)),
             );
         }
+    }
+
+    if border {
+        p.rect_stroke(
+            resp.rect,
+            10.0,
+            Stroke::new(2.0, style::ACTIVE_COLOR),
+            StrokeKind::Inside,
+        );
     }
 }
 

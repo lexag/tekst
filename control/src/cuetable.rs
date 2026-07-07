@@ -71,9 +71,8 @@ impl egui_table::TableDelegate for ScriptLineListDelegate<'_> {
 
         let opmode = self.app.op_mode;
         if let Some(seq) = self.app.selected_sequence_mut() {
-            edge_strokes(ui, rect, x, stroke);
-
             if row_nr < EXTRA_ROWS_ABOVE {
+                edge_strokes(ui, rect, x, stroke);
                 return;
             }
 
@@ -81,6 +80,7 @@ impl egui_table::TableDelegate for ScriptLineListDelegate<'_> {
             let this_is_selected = cue_nr as usize == seq.sequence.cue_pointer;
 
             if cue_nr >= seq.sequence.cues.len() as u64 {
+                edge_strokes(ui, rect, x, stroke);
                 return;
             }
 
@@ -92,9 +92,13 @@ impl egui_table::TableDelegate for ScriptLineListDelegate<'_> {
 
             if cue.autogo_delay_ms.is_some() || cue.autogo_timecode.is_some() {
                 ui.painter()
-                    .rect_filled(rect, 0.0, style::ACCENT_COLOR.gamma_multiply(0.2));
-                edge_strokes(ui, rect, x, stroke);
+                    .rect_filled(rect, 0.0, style::ACTIVE_COLOR.gamma_multiply(0.2));
             }
+            if cue.mark.is_some() {
+                ui.painter()
+                    .rect_filled(rect, 0.0, style::ACCENT_COLOR.gamma_multiply(0.2));
+            }
+            edge_strokes(ui, rect, x, stroke);
 
             if this_is_selected {
                 ui.painter().rect_stroke(
