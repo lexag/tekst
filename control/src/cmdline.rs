@@ -112,7 +112,7 @@ impl CommandLine {
         let ident_parsed: Option<usize> = ident.parse().ok();
         match ident_type {
             CommandLineToken::Cue => {
-                if let Some(seq) = app.selected_sequence() {
+                if let Some(seq) = app.selected_sequence_mut() {
                     seq.sequence.goto_ident(ident);
                     app.autogo.dry_go_happened();
                 }

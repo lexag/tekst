@@ -151,6 +151,7 @@ impl TekstApp {
         a.ctx = cc.egui_ctx.clone();
         ks_common_ui::style::load_fonts(&mut a.ctx);
         a.file_dialog = FileDialog::new();
+        a.shortcuts = all_default_shortcuts();
         let mut errs_to_log = vec![];
         for sequence in &mut a.sequences {
             if let Some(seq) = sequence.as_mut() {
@@ -194,8 +195,12 @@ impl TekstApp {
         a
     }
 
-    pub fn selected_sequence(&mut self) -> &mut Option<SequenceSlot> {
+    pub fn selected_sequence_mut(&mut self) -> &mut Option<SequenceSlot> {
         &mut self.sequences[self.selected_sequence_idx]
+    }
+
+    pub fn selected_sequence(&self) -> Option<&SequenceSlot> {
+        self.sequences[self.selected_sequence_idx].as_ref()
     }
 
     pub fn go_cue(&mut self, cue: &Cue) {

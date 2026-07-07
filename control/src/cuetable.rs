@@ -61,7 +61,7 @@ impl egui_table::TableDelegate for ScriptLineListDelegate<'_> {
         let mut interaction_happened = false;
         let autofollow_progress = self.app.autogo.progress(&self.app.selected_cue());
 
-        if let Some(seq) = self.app.selected_sequence() {
+        if let Some(seq) = self.app.selected_sequence_mut() {
             if row_nr < EXTRA_ROWS_ABOVE {
                 return;
             }
@@ -160,7 +160,7 @@ pub fn cue_table(app: &mut TekstApp, ui: &mut egui::Ui) {
             egui_table::Column::new(128.0).resizable(false),
         ]);
     let autoscroll = app.autoscroll;
-    if let Some(seq) = app.selected_sequence() {
+    if let Some(seq) = app.selected_sequence_mut() {
         if autoscroll {
             table = table.scroll_to_row(
                 (seq.sequence.cue_pointer as u64).saturating_add(EXTRA_ROWS_ABOVE),
