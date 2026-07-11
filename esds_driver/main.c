@@ -11,38 +11,17 @@
 // This header is generated from pinstream.pio
 #include "pinstream.pio.h"
 
+#include "wavegen.c"
+
 // ===== CONFIG =====
-#define PIN_BASE 5
-#define PIN_COUNT 8
 
 // clk, blank, latch, data_r, data_g
-const uint32_t display_pins[10] = {5 - PIN_BASE, 6 - PIN_BASE, 8 - PIN_BASE, 7 - PIN_BASE, 9 - PIN_BASE, 10 - PIN_BASE, 11 - PIN_BASE, 12 - PIN_BASE, 7 - PIN_BASE, 9 - PIN_BASE};
-#define CLK 0
-#define BLANK 1
-#define LATCH 2
-#define DATA_RED 3
-#define DATA_GREEN 4
-
 #define PIN_SDA 22
 #define PIN_SCL 23
 #define I2C0_PERIPHERAL_ADDR 0x30
 
 #define PIN_DEBUG 25
 
-#define NUM_DISPLAYS 2
-#define DISPLAY_HEIGHT 16
-#define DISPLAY_WIDTH 448
-#define COLOR_DEPTH 2
-#define SCAN_ROWS 17
-#define RESET_ROW 0
-#define BRIGHTNESS_RANGE 16000
-#define HEADER_LEN 250
-#define DATA_TICK_LEN 40
-#define PAUSE_LEN 10
-#define DATA_LEN DISPLAY_WIDTH * DATA_TICK_LEN + PAUSE_LEN * DISPLAY_WIDTH / 8
-#define PACKET_LEN HEADER_LEN + DATA_LEN 
-//#define PACKET_LEN BIT_LEN * WIDTH 
-#define BUFFER_LEN PACKET_LEN * SCAN_ROWS * 20
 static uint8_t wave_buffer[BUFFER_LEN]  __attribute__ ((aligned (8))) = {
     0
 };
@@ -52,17 +31,14 @@ static uint8_t rx_buffer[DISPLAY_HEIGHT + DISPLAY_WIDTH * DISPLAY_HEIGHT * COLOR
 static uint32_t rx_index = 0;
 static uint8_t rx_ident = 0;
 
-static uint32_t state = 1u << LATCH;
-static uint32_t wp = 0;
-static int actual_buffer_len = 0;
 static volatile bool wave_dirty = 0;
 static int row_index = 0;
+static int actual_buffer_len = 0;
 
 static int brightness_ptr = 0;
 
 static int debug_val = 0;
 
-static int pin_address_offset = 0;
 
 static int dma_chan_data;
 
@@ -72,155 +48,6 @@ void flip_led() {
 }
 
 
-int pin(int pin) {
-    return display_pins[pin + pin_address_offset];
-}
-
-//static void spi0_irq_handler(void)
-//{
-//    spi_hw_t *hw = spi_get_hw(SPI_PORT);
-//    rx_head = 0;
-//
-//    // Drain RX FIFO
-//    flip_led();
-//    while (hw->sr & SPI_SSPSR_RNE_BITS) {
-//        uint8_t byte = (uint8_t)hw->dr;
-//        wave_dirty = true;
-//
-//        rx_buffer[rx_head] = byte;
-//        rx_head++;
-//        if (rx_head > sizeof(rx_buffer)) {
-//            break;
-//        }
-//    }
-//    flip_led();
-//}
-
-static inline void set_pin(int pin, int set) {
-    state &= ~(1U << pin);
-    state |= (set & 1U) << pin;
-}
-
-static inline void clk(int set) {
-    set_pin(pin(CLK), set);
-}
-
-
-void write(int ticks) {
-    for (int i = 0; i < ticks; i++) {
-        if (wp < 0 || wp >= BUFFER_LEN) {
-            //gpio_put(PIN_DEBUG, 1);
-            return;
-        }
-        wave_buffer[wp] = state;
-        wp++;
-    }
-    
-}
-
-void data_tick(int idx, int dat_r, int dat_g, int brightness) {
-    clk(1);
-    set_pin(pin(DATA_GREEN), !dat_g);
-    set_pin(pin(DATA_RED), !dat_r);
-    write(2);
-
-    //if (idx == (DISPLAY_WIDTH * (255 - ((brightness - 2)/2 + 128))) / 255 - 1) {
-    //    set_pin(BLANK, 0);
-    //}
-    //if (idx == DISPLAY_WIDTH - brightness) {
-    //    set_pin(BLANK, 0);
-    //}
-    
-    if (idx == brightness) {
-        set_pin(pin(BLANK), 0);
-    }
-    
-    clk(0);
-    if (idx % 8 == 7) {
-        write(PAUSE_LEN);
-    }
-    write(5);
-}
-
-
-void header(bool no_blank, int brightness) {
-    clk(1);
-    set_pin(pin(DATA_GREEN), 0);
-    set_pin(pin(DATA_RED), 0);
-    write(10);
-
-    if (!no_blank) {
-        set_pin(pin(BLANK), 1);
-    }
-    write(3); ;
-
-    set_pin(pin(LATCH), 0);
-    write(3);
-
-    set_pin(pin(LATCH), 1);
-    write(3);
-    
-    //set_pin(pin(BLANK), 0);
-    write(10);
-
-    clk(0);
-    set_pin(pin(DATA_GREEN), 1);
-    set_pin(pin(DATA_RED), 1);
-    write(10);
-}
-
-void wait_until_end() {
-    write(BUFFER_LEN - wp);
-}
-
-
-void build_wave() {
-    wp = 0;
-    const int PIXEL_BITS = DISPLAY_HEIGHT * DISPLAY_WIDTH / 8;
-    const int px_start = DISPLAY_HEIGHT * NUM_DISPLAYS;
-
-
-    for (int i = 0; i < DISPLAY_HEIGHT + 1; i++) {
-        int row = DISPLAY_HEIGHT - 1 - (i % DISPLAY_HEIGHT);
-        //int bright = rx_buffer[row];
-        int bright = rx_buffer[0];
-        int row_offs = row*DISPLAY_WIDTH / 8;
-
-        for (int display_idx = 0; display_idx < NUM_DISPLAYS; display_idx++) {
-            pin_address_offset = 5 * display_idx;
-            int red_offs = px_start + display_idx * PIXEL_BITS;
-            int green_offs = red_offs + PIXEL_BITS * NUM_DISPLAYS;
-
-            set_pin(pin(BLANK), 1);
-            for (int x = 0; x < DISPLAY_WIDTH; x++) {
-                int px_offs = x/8 + row_offs;
-                bool red = (rx_buffer[red_offs + px_offs] & (0x1 << (7 - (x % 8)))) > 0;
-                bool green = (rx_buffer[green_offs + px_offs] & (0x1 << (7 - (x % 8)))) > 0;
-
-                //if (x == bright * DISPLAY_WIDTH / 255) {
-                //    pin_address_offset = 5 - 5 * display_idx;
-                //    set_pin(pin(BLANK), 0);
-                //}
-                //pin_address_offset = 5 * display_idx;
-
-                data_tick(x, red, green, bright);
-            }
-            header(false, 0);
-        }
-
-    };
-
-    for (int display_idx = 0; display_idx < NUM_DISPLAYS; display_idx++) {
-        pin_address_offset = 5 * display_idx;
-        for (int x = 0; x < DISPLAY_WIDTH; x++) {
-            data_tick(x, 0, 0, 255);
-        }
-        header(true, 0);
-    }
-    //wave_buffer[0] |= 0x1 << SCRN;
-    //row_index++;
-    //row_index %= SCAN_ROWS;
-}
 
 
 void __isr i2c1_irq_handler(void)
@@ -250,7 +77,7 @@ void __isr i2c1_irq_handler(void)
         //flip_led();
 
         if (rx_ident == 3) {
-            build_wave();
+            actual_buffer_len = build_wave(rx_buffer, wave_buffer);
             flip_led();
             //flip_led();
             rx_index = 0;
@@ -277,8 +104,7 @@ void dma_irq_handler() {
 
 int main() {
     memset(rx_buffer, 0xFF, sizeof(rx_buffer));
-    build_wave();
-    actual_buffer_len = wp;
+    actual_buffer_len = build_wave(rx_buffer, wave_buffer);
 
     stdio_init_all();
 
