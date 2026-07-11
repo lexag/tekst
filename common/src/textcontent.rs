@@ -19,3 +19,9 @@ pub struct TextContent {
     pub align: TextAlign,
     pub font: Font,
 }
+
+impl TextContent {
+    pub fn is_blank(&self) -> bool {
+        self.text.is_empty() || self.text.iter().all(|s| s.is_empty())
+    }
+}
