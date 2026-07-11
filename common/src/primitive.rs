@@ -87,6 +87,18 @@ impl Display for Transition {
     }
 }
 
+impl Transition {
+    pub fn duration(&self) -> f32 {
+        match self {
+            Transition::NoTransition => 0.0,
+            Transition::FadeFast => 0.5,
+            Transition::FadeMedium => 1.0,
+            Transition::FadeSlow => 2.0,
+            Transition::FadeVerySlow => 5.0,
+        }
+    }
+}
+
 #[cfg(feature = "egui")]
 impl InlineWidgetAutoEnum for Transition {
     fn options() -> Vec<Self>
