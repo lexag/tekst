@@ -2,11 +2,6 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#define CLK 0
-#define BLANK 1
-#define LATCH 2
-#define DATA_RED 3
-#define DATA_GREEN 4
 
 #define NUM_DISPLAYS 2
 #define DISPLAY_HEIGHT 16
@@ -20,6 +15,7 @@ static int current_green = 0;
 
 static uint8_t state = 1u << LATCH;
 static uint32_t wp = 0;
+static int brightness_step = 0;
 
 #define HEADER_LEN 15
 #define DATA_TICK_LEN 7
@@ -27,6 +23,16 @@ static uint32_t wp = 0;
 #define DATA_LEN (DISPLAY_WIDTH * DATA_TICK_LEN + PAUSE_LEN * DISPLAY_WIDTH / 8)
 #define PACKET_LEN (HEADER_LEN + DATA_LEN)
 #define BUFFER_LEN (PACKET_LEN * SCAN_ROWS * NUM_DISPLAYS)
+
+#define BLANK_MAX_LEN (DATA_LEN * 7 / 4)
+#define BLANK_MIN_LEN HEADER_LEN
+static int blank_start_idxs[SCAN_ROWS * NUM_DISPLAYS] = {0};
+static int blank_counter = 0;
+
+static inline void emit_blanking_start(int idx) {
+  blank_start_idxs[blank_counter] = idx;
+  blank_counter++;
+}
 
 static inline void set_pin(int pin, int set) {
   uint8_t mask = 1u << pin;
@@ -77,9 +83,9 @@ void data_tick(uint8_t out[], int idx, int dat_r, int dat_g, int brightness) {
   //     set_pin(BLANK, 0);
   // }
 
-  if (idx == brightness) {
-    set_pin(pin(BLANK), 0);
-  }
+  // if (idx == brightness) {
+  //   set_pin(pin(BLANK), 0);
+  // }
 
   clk(0);
   // is this needed?
@@ -98,7 +104,7 @@ void header(uint8_t out[], bool no_blank, int brightness) {
   writestd(out);
 
   if (!no_blank) {
-    set_pin(pin(BLANK), 1);
+    emit_blanking_start(wp);
   }
   // write(out, 3);
   writestd(out);
@@ -123,6 +129,14 @@ void header(uint8_t out[], bool no_blank, int brightness) {
 
 void wait_until_end(uint8_t out[]) { write(out, BUFFER_LEN - wp); }
 
+void restart_animation() {
+  brightness_step = 0;
+}
+
+int animation_done() {
+  return brightness_step == 31;
+}
+
 int build_wave(uint8_t img_buf[], uint8_t out[]) {
   wp = 0;
   const int PIXEL_BITS = DISPLAY_HEIGHT * DISPLAY_WIDTH / 8;
@@ -139,19 +153,12 @@ int build_wave(uint8_t img_buf[], uint8_t out[]) {
       int red_offs = px_start + display_idx * PIXEL_BITS;
       int green_offs = red_offs + PIXEL_BITS * NUM_DISPLAYS;
 
-      set_pin(pin(BLANK), 1);
       for (int x = 0; x < DISPLAY_WIDTH; x++) {
         int px_offs = x / 8 + row_offs;
         uint8_t bit_idx = x % 8;
         uint8_t mask = (0x1 << (7 - (bit_idx))) > 0;
         uint8_t red = img_buf[red_offs + px_offs] & mask;
         uint8_t green = img_buf[green_offs + px_offs] & mask;
-
-        // if (x == bright * DISPLAY_WIDTH / 255) {
-        //     pin_address_offset = 5 - 5 * display_idx;
-        //     set_pin(pin(BLANK), 0);
-        // }
-        // pin_address_offset = 5 * display_idx;
 
         data_tick(out, x, red, green, bright);
       }
@@ -167,5 +174,20 @@ int build_wave(uint8_t img_buf[], uint8_t out[]) {
     header(out, true, 0);
   }
 
+  for (int i = 0; i < blank_counter; i++) {
+    int start_idx = blank_start_idxs[i];
+    blank_start_idxs[i] = 0;
+    int len = BLANK_MIN_LEN + (BLANK_MAX_LEN - BLANK_MIN_LEN) * img_buf[brightness_step] / 255;
+    pin_address_offset = 5 * (i % 2);
+    uint8_t mask = 1u << pin(BLANK);
+    for (int idx = start_idx; idx < start_idx + len; idx++) {
+      out[idx] |= mask;
+    }
+  }
+  blank_counter = 0;
+
+  if (brightness_step < 31) {
+    brightness_step++;
+  }
   return wp;
 }

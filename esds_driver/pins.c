@@ -2,6 +2,23 @@
 #define PIN_BASE 5
 #define PIN_COUNT 8
 
+#define CLK 0
+#define BLANK 1
+#define LATCH 2
+#define DATA_RED 3
+#define DATA_GREEN 4
+
+// array order is CLK A, BLANK A, LATCH A, DATA_RED A, DATA_GREEN A, CLK B,
+// BLANK B, LATCH B, DATA_RED B, DATA_GREEN B
+// out order is:
+// 0: CLK A
+// 1: BLANK A
+// 2: LATCH A
+// 3: DATA RED
+// 4: DATA GREEN
+// 5: CLK B
+// 6: BLANK B
+// 7: LATCH B
 const int display_pins[10] = {5 - PIN_BASE, 6 - PIN_BASE, 8 - PIN_BASE, 7 - PIN_BASE, 9 - PIN_BASE, 10 - PIN_BASE, 11 - PIN_BASE, 12 - PIN_BASE, 7 - PIN_BASE, 9 - PIN_BASE};
 const uint8_t display_pin_masks[10] = {
     1 << display_pins[0],

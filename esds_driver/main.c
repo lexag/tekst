@@ -4,7 +4,6 @@
 #include "pico/stdlib.h"
 #include <math.h>
 #include <stdint.h>
-#include <stdio.h>
 #include <string.h>
 // #include "hardware/spi.h"
 #include "hardware/i2c.h"
@@ -72,6 +71,7 @@ void __isr i2c1_irq_handler(void) {
     // flip_led();
 
     if (rx_ident == 3) {
+      restart_animation();
       wave_dirty = true;
       // flip_led();
       rx_index = 0;
@@ -188,10 +188,12 @@ int main() {
       I2C_IC_INTR_MASK_M_RX_FULL_BITS | I2C_IC_INTR_MASK_M_STOP_DET_BITS;
 
   while (true) {
-    if (wave_dirty) {
+    if (wave_dirty && rx_index == 0) {
         //flip_led();
         new_buffer();
-        wave_dirty = false;
+        if animation_done() {
+            wave_dirty = false;
+        }
     }
   }
 }
