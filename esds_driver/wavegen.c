@@ -15,7 +15,8 @@ static int current_green = 0;
 
 static uint8_t state = 1u << LATCH;
 static uint32_t wp = 0;
-static int brightness_step = 0;
+static int brightness_step = 1;
+static int animation_clock = 0;
 
 #define HEADER_LEN 15
 #define DATA_TICK_LEN 7
@@ -130,7 +131,8 @@ void header(uint8_t out[], bool no_blank, int brightness) {
 void wait_until_end(uint8_t out[]) { write(out, BUFFER_LEN - wp); }
 
 void restart_animation() {
-  brightness_step = 0;
+  brightness_step = 1;
+  animation_clock = 0;
 }
 
 int animation_done() {
@@ -186,8 +188,11 @@ int build_wave(uint8_t img_buf[], uint8_t out[]) {
   }
   blank_counter = 0;
 
-  if (brightness_step < 31) {
+  // first byte of img_buf is clock divider
+  if (brightness_step < 31 && animation_clock % img_buf[0] == 0) {
     brightness_step++;
   }
+  animation_clock++;
+
   return wp;
 }
