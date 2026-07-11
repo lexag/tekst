@@ -16,5 +16,5 @@ tekst-common = { path = "../common", features = [ "egui" ] }
 [features]
 embedded = ["dep:rppal"]
 desktop = ["dep:egui", "dep:eframe"]
+startup-checks = []
 
-embedded-animations = []

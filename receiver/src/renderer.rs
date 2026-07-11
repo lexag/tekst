@@ -4,13 +4,14 @@ use egui::{vec2, Color32, Sense, Ui};
 use serde::Deserialize;
 use std::collections::HashMap;
 use tekst_common::{
-    primitive::{Color, TextAlign},
+    primitive::{Color, TextAlign, Transition},
     textcontent::TextContent,
 };
 
 #[derive(Copy, Clone)]
 pub struct DisplayBuffer {
-    pub brightnesses: [u8; DISPLAY_HEIGHT],
+    pub clock_divider: u8,
+    pub brightnesses: [u8; 31],
 
     // reds and greens are stored bitpacked row by row, with the first index on the bottom left like so:
     // bits : LSB         MSB LSB         MSB LSB         MSB etc.
@@ -39,7 +40,7 @@ impl DisplayBuffer {
         if col.g() {
             img.greens.fill();
         }
-        img.brightnesses.fill(255 - bright);
+        img.brightnesses.fill(bright);
         img
     }
 
@@ -65,9 +66,37 @@ impl DisplayBuffer {
             (((DISPLAY_HEIGHT & 0xFF00) >> 8) as u8).reverse_bits();
         img.greens.rect(Self::MID_LR - 5, Self::MID_TB - 1, 1, 5);
 
-        img.brightnesses.fill(0);
+        img.brightnesses.fill(255);
 
         img
+    }
+
+    pub fn set_animation(&mut self, max_bright: u8, fade_up: bool, time: f32) {
+        const FPS: usize = 60;
+        const STEPS: usize = 31;
+
+        let mut num_steps = 0;
+        let mut divider = 1;
+        while divider < 100 {
+            let anim_fps = FPS as f32 / divider as f32;
+            if time < STEPS as f32 / anim_fps {
+                num_steps = (time * anim_fps) as u8;
+                break;
+            }
+            divider += 1;
+        }
+        let step_size = 255 / num_steps;
+        let mut v = if fade_up { 0 } else { max_bright };
+        self.brightnesses.fill(max_bright - v);
+        self.clock_divider = divider;
+        for i in 0..num_steps {
+            self.brightnesses[i as usize] = v;
+            if fade_up {
+                v = v.saturating_add(step_size);
+            } else {
+                v = v.saturating_sub(step_size);
+            }
+        }
     }
 }
 
@@ -129,7 +158,8 @@ impl BitBuffer {
 impl DisplayBuffer {
     pub fn new() -> Self {
         Self {
-            brightnesses: [255_u8; DISPLAY_HEIGHT],
+            clock_divider: 1,
+            brightnesses: [255_u8; 31],
             reds: BitBuffer::new(),
             greens: BitBuffer::new(),
         }
@@ -230,7 +260,7 @@ impl TextRenderer {
         );
         p.rect_filled(resp.rect, 0.0, Color32::DARK_BLUE);
 
-        self.metarender(self.last_content.clone(), |rect, color| {
+        self.metarender(self.last_content.clone(), |rect, color, _| {
             p.circle_filled(
                 resp.rect.min + vec2(scale * rect.x as f32, scale * rect.y as f32),
                 scale / 2.0,
@@ -244,15 +274,18 @@ impl TextRenderer {
 
         let mut img = DisplayBuffer::new();
 
-        self.metarender(text, |rect, color, bright| {
+        self.metarender(text.clone(), |rect, color, bright| {
             if color.r() {
                 img.reds.rect(rect.x, rect.y, rect.w, rect.h);
             }
             if color.g() {
                 img.greens.rect(rect.x, rect.y, rect.w, rect.h);
             }
-            img.brightnesses.fill(255 - bright);
+            img.brightnesses.fill(bright);
         });
+        if text.transition != Transition::NoTransition {
+            img.set_animation(text.brightness, true, text.transition.duration());
+        }
         img
     }
 
@@ -281,7 +314,7 @@ impl TextRenderer {
                     (render_closure)(
                         BoundingBox {
                             x: rect.x + horizontal_cursor,
-                            y: rect.y + vertical_cursor - i,
+                            y: rect.y + vertical_cursor - 1,
                             ..*rect
                         },
                         text.color,

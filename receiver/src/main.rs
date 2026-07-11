@@ -46,9 +46,9 @@ fn main() {
     loop {
         use std::time::Duration;
 
-        if let Some(display) = handler.tick() {
-            spi.send_buffer(display);
-        }
+        handler.tick(|buf| {
+            spi.send_buffer(buf);
+        });
         std::thread::sleep(Duration::from_millis(100))
     }
 }

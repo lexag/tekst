@@ -4,12 +4,14 @@ use tekst_common::textcontent::TextContent;
 
 pub struct DesktopApp {
     handler: Handler,
+    animation_start_time: f32,
 }
 
 impl Default for DesktopApp {
     fn default() -> Self {
         Self {
             handler: Handler::new(),
+            animation_start_time: 0.0,
         }
     }
 }
@@ -25,7 +27,8 @@ impl eframe::App for DesktopApp {
         ctx.request_repaint();
         CentralPanel::default().show(ctx, |ui| {
             egui::ScrollArea::both().show(ui, |ui| {
-                self.handler.tick();
+                self.handler
+                    .tick(|buf| self.animation_start_time = ui.input(|i| i.time) as f32);
 
                 //self.handler.renderer.egui_render(ui, POINT_SIZE);
 
@@ -56,12 +59,26 @@ impl eframe::App for DesktopApp {
                             (false, false) => Color32::BLACK,
                         };
 
+                        let anim_timer = ui.input(|i| i.time) as f32 - self.animation_start_time;
+                        let brightness_idx = ((75.0 * anim_timer
+                            / self.handler.display.clock_divider as f32)
+                            as usize)
+                            .min(30)
+                            .max(1);
+
+                        let t = (255 - self.handler.display.brightnesses[brightness_idx]) as f32
+                            / 255.0;
+
+                        //println!(
+                        //    "brightness: {} t: {} clkdiv: {}",
+                        //    brightness_idx, t, self.handler.display.clock_divider
+                        //);
                         p.circle_filled(
                             resp.rect.min
                                 + vec2(POINT_SIZE * x as f32, POINT_SIZE * y as f32)
                                 + vec2(POINT_SIZE, POINT_SIZE) * 0.5,
                             POINT_SIZE * 0.5,
-                            col,
+                            col.lerp_to_gamma(Color32::BLACK, t),
                         );
                     }
                 }
