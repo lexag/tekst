@@ -30,9 +30,16 @@
 - Render fade transition and feature-gate startup images
 - Add cargo workspace
 - Add logicplot tool for esds driver
+- Update CHANGELOG.md and Release 0.1.0
+
+### 📚 Documentation
+
+- Update RELEASE.md
 
 ### ⚙️ Miscellaneous Tasks
 
 - Add cargo dist support for tekst and tekst-receiver
 - Add RELEASE.md
 - Git cliff init
+- Fix cargo profiles
+- Update CHANGELOG
