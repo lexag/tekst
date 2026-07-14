@@ -139,6 +139,14 @@ jobs:
       - name: Install dependencies
         run: |
           ${{ matrix.packages_install }}
+      - name: Install Linux dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt update
+          sudo apt install -y \
+            pkg-config \
+            libasound2-dev \
+            libudev-dev
       - name: Build artifacts
         run: |
           # Actually do builds and make zips and whatnot
