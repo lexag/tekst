@@ -1,0 +1,38 @@
+## Version 0.1.0 - 2026-07-14
+
+### 💼 Other
+
+- I2c, multidisplay
+- Unified brightness
+- I2c
+- Correct size and brightness
+- Correct size
+- Remove old fonts, add new sans font
+- Remove old transitions, add 4 fade speeds
+- Remove PatchPointer and increase max cues to 12
+- Selected_sequence_mut
+- Commandline upgrades: range selection, insert and delete cues and seqs
+- Add mark and description fields to Cue
+- Support 12 sequences in commandline
+- Edit mode
+- Editable text fields in cuetable
+- Fix goto ident parsing
+- Add TIME cmd to remove autogo settings
+- T to toggle autogo
+- Update stuff
+- Split c file, accurate buffer length
+- Some performance optimisations
+- (untested) double wave buffer
+- 32 step full range brightness animation
+- Clock divider for animation clock
+- Transition::duration()
+- TextContent::is_blank()
+- Render fade transition and feature-gate startup images
+- Add cargo workspace
+- Add logicplot tool for esds driver
+
+### ⚙️ Miscellaneous Tasks
+
+- Add cargo dist support for tekst and tekst-receiver
+- Add RELEASE.md
+- Git cliff init
