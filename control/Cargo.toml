@@ -2,6 +2,13 @@
 name = "tekst"
 version = "0.1.0"
 edition = "2024"
+repository = "https://github.com/lexag/tekst"
+
+[package.metadata.wix]
+upgrade-guid = "43CC461F-B6B8-4BAE-9047-0D6678789184"
+path-guid = "43FE3284-EE24-4A48-B85A-095883C2B768"
+license = false
+eula = false
 
 [dependencies]
 csv = "1.4.0"
@@ -18,3 +25,8 @@ ks-common-ui = { git = "https://github.com/lexag/ks-common", branch="ui-framewor
 ks-common-generic = { git = "https://github.com/lexag/ks-common", branch="release/v2.3.0", features = ["serde"] } 
 tekst-common = { path = "../common", features = ["egui"] }
 serde_json = "1.0.150"
+
+# The profile that 'dist' will build with
+[profile.dist]
+inherits = "release"
+lto = "thin"

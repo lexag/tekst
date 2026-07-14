@@ -18,3 +18,8 @@ embedded = ["dep:rppal"]
 desktop = ["dep:egui", "dep:eframe"]
 startup-checks = []
 
+# The profile that 'dist' will build with
+[profile.dist]
+inherits = "release"
+lto = "thin"
+
