@@ -15,12 +15,7 @@ tekst-common = { path = "../common", features = [ "egui" ] }
 
 
 [features]
-embedded = ["dep:rppal"]
+default = ["desktop"]
+embedded = ["dep:rppal", "startup-checks"]
 desktop = ["dep:egui", "dep:eframe"]
 startup-checks = []
-
-# The profile that 'dist' will build with
-[profile.dist]
-inherits = "release"
-lto = "thin"
-
