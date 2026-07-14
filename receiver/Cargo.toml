@@ -1,7 +1,8 @@
 [package]
 name = "tekst-receiver"
-version = "0.1.0"
-edition = "2024"
+version.workspace = true
+repository.workspace = true
+edition.workspace = true
 
 [dependencies]
 eframe = { version = "0.33.3", optional = true }

@@ -1,8 +1,8 @@
 [package]
 name = "tekst"
-version = "0.1.0"
-edition = "2024"
-repository = "https://github.com/lexag/tekst"
+version.workspace = true
+repository.workspace = true
+edition.workspace = true
 
 [package.metadata.wix]
 upgrade-guid = "43CC461F-B6B8-4BAE-9047-0D6678789184"
