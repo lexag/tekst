@@ -191,7 +191,7 @@ int main() {
     if (wave_dirty && rx_index == 0) {
         //flip_led();
         new_buffer();
-        if animation_done() {
+        if (animation_done()) {
             wave_dirty = false;
         }
     }
