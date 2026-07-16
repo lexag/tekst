@@ -606,6 +606,7 @@ impl eframe::App for TekstApp {
 
         egui::SidePanel::right("cuetable")
             .resizable(false)
+            .exact_width(ctx.content_rect().width() / 2.0)
             .show(ctx, |ui| {
                 self.global_settings_bar(ui);
                 ui.separator();
