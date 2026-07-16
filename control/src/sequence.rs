@@ -31,11 +31,17 @@ impl Sequence {
         )
     }
 
-    pub fn insert_cue(&mut self, idx: usize) {
+    pub fn insert_cue(&mut self, idx: usize, autoident: bool) {
         let new_cue = self.cues.insert_mut(
             idx,
             Cue {
-                ident: "-".to_string(),
+                ident: if autoident && let Some(prev_cue) = self.cues.get(idx - 1) {
+                    let mut prev_ident = prev_cue.ident.clone();
+                    prev_ident.push_str(".1");
+                    prev_ident
+                } else {
+                    "-".to_string()
+                },
                 ..Default::default()
             },
         );

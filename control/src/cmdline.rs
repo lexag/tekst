@@ -203,7 +203,7 @@ impl CommandLine {
                 app.selected_sequence_mut()
                     .as_mut()?
                     .sequence
-                    .insert_cue(idx);
+                    .insert_cue(idx, false);
 
                 Some(true)
             }
@@ -216,7 +216,7 @@ impl CommandLine {
             app.selected_sequence_mut()
                 .as_mut()?
                 .sequence
-                .insert_cue(idx + 1);
+                .insert_cue(idx + 1, true);
             return Some(true);
         }
         None
