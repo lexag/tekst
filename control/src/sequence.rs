@@ -64,11 +64,15 @@ impl Sequence {
     //}
 
     pub fn find_prev_mark(&self, end_idx: usize) -> Option<usize> {
-        self.cues[..end_idx].iter().position(|c| c.mark.is_some())
+        self.cues[..end_idx]
+            .iter()
+            .rev()
+            .position(|c| c.mark.is_some())
+            .map(|v| end_idx.saturating_sub(v).saturating_sub(1))
     }
 
     pub fn goto_next_mark(&mut self) {
-        if let Some(idx) = self.find_next_mark(self.cue_pointer) {
+        if let Some(idx) = self.find_next_mark(self.cue_pointer + 1) {
             self.cue_pointer = idx;
         } else {
             self.cue_pointer = self.cues.len() - 1;

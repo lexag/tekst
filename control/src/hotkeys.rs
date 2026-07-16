@@ -198,6 +198,9 @@ pub fn all_default_shortcuts() -> ShortcutMap {
     shortcuts.add(ActionID::SelectCueDown(1), press(Key::ArrowDown));
     shortcuts.add(ActionID::GoCue(Cue::default()), press(Key::Delete));
 
+    shortcuts.add(ActionID::SelectCueMarkNext, press(Key::PageDown));
+    shortcuts.add(ActionID::SelectCueMarkPrev, press(Key::PageUp));
+
     shortcuts.add(ActionID::ToggleAutoscroll, press(Key::R));
     shortcuts.add(ActionID::ToggleAutoGo, press(Key::T));
 
