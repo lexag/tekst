@@ -82,6 +82,7 @@ pub enum ActionID {
     CommandLineCancel,
     ToggleAutoscroll,
     ToggleAutoGo,
+    ToggleAutoGoLearn,
     GoCue(Cue),
     DisplayFontShrink,
     DisplayFontGrow,
@@ -139,6 +140,9 @@ pub fn exec_action(app: &mut TekstApp, action_id: ActionID) {
                 *app.autogo.follow.mode_mut() = AutoGoOpMode::Ctrl;
                 *app.autogo.timecode.mode_mut() = AutoGoOpMode::Ctrl;
             }
+        }
+        ActionID::ToggleAutoGoLearn => {
+            app.autogo.toggle_learn();
         }
         ActionID::CommandLineBackspace => app.commandline.backspace(),
         ActionID::CommandLineCancel => app.commandline.clear(),
@@ -218,6 +222,7 @@ pub fn all_default_shortcuts() -> ShortcutMap {
 
     shortcuts.add(ActionID::ToggleAutoscroll, press(Key::R));
     shortcuts.add(ActionID::ToggleAutoGo, press(Key::T));
+    shortcuts.add(ActionID::ToggleAutoGoLearn, shift(Key::T));
 
     shortcuts.add(ActionID::DisplayFontGrow, press(Key::Plus));
     shortcuts.add(ActionID::DisplayFontShrink, press(Key::Minus));
@@ -282,6 +287,6 @@ fn press(key: Key) -> Shortcut {
 fn _ctrl(key: Key) -> Shortcut {
     Shortcut::new(Some(KeyboardShortcut::new(Modifiers::CTRL, key)), None)
 }
-fn _shift(key: Key) -> Shortcut {
+fn shift(key: Key) -> Shortcut {
     Shortcut::new(Some(KeyboardShortcut::new(Modifiers::SHIFT, key)), None)
 }
