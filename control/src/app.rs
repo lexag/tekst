@@ -415,6 +415,9 @@ impl TekstApp {
         // When AFW or ATC is in learn mode, the bar is orange.
         let base_color = if self.autogo.any_learn() {
             Color32::ORANGE
+        // When AFW and ATC are off or in hint mode, the bar is blue.
+        } else if self.autogo.any_hint() {
+            ks_common_ui::style::ACCENT_COLOR
         // When AFW or ATC is on but idle, the bar is dark green.
         } else if self.autogo.any_active()
             && self.autogo.time_until_go(self.selected_cue()).is_infinite()
@@ -435,7 +438,6 @@ impl TekstApp {
         // When AFW or ATC is on and counting down, the bar is green.
         } else if self.autogo.any_active() {
             ks_common_ui::style::ACTIVE_COLOR
-        // When AFW and ATC are off or in hint mode, the bar is blue.
         } else {
             ks_common_ui::style::ACCENT_COLOR
         };
@@ -523,7 +525,8 @@ impl eframe::App for TekstApp {
 
         self.file_dialog.update(ctx);
         self.handle_keybinds();
-        if self.autogo.requests_go(&self.selected_cue()) {
+        let cue = self.selected_cue().clone();
+        if self.autogo.requests_go(&cue) {
             self.go();
         }
         self.error_log.update(self.opaque_time());

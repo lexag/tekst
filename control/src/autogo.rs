@@ -12,8 +12,12 @@ pub trait AutoGo {
         1.0 - (self.time_until_go(cue) / self.max_time_until_go(cue)).clamp(0.0, 1.0) as f32
     }
 
-    fn requests_go(&self, cue: &Cue) -> bool {
-        self.time_until_go(cue) <= 0.0
+    fn requests_go(&mut self, cue: &Cue) -> bool {
+        if *self.mode_mut() != AutoGoOpMode::Hint {
+            self.time_until_go(cue) <= 0.0
+        } else {
+            false
+        }
     }
 
     fn mode_mut(&mut self) -> &mut AutoGoOpMode;
@@ -24,6 +28,7 @@ pub trait AutoGo {
 #[derive(serde::Deserialize, serde::Serialize, PartialEq, Eq, Debug, Clone, Copy)]
 pub enum AutoGoOpMode {
     Off,
+    Hint,
     Ctrl,
     Learn,
 }
@@ -32,6 +37,7 @@ impl Display for AutoGoOpMode {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             AutoGoOpMode::Off => write!(f, "Off"),
+            AutoGoOpMode::Hint => write!(f, "Hint"),
             AutoGoOpMode::Ctrl => write!(f, "Control"),
             AutoGoOpMode::Learn => write!(f, "Learn"),
         }
@@ -43,12 +49,13 @@ impl InlineWidgetAutoEnum for AutoGoOpMode {
     where
         Self: Sized + Display,
     {
-        vec![Self::Off, Self::Ctrl, Self::Learn]
+        vec![Self::Off, Self::Hint, Self::Ctrl, Self::Learn]
     }
 
     fn color(&self) -> Option<egui::Color32> {
         match self {
             AutoGoOpMode::Off => None,
+            AutoGoOpMode::Hint => Some(ks_common_ui::style::ACCENT_COLOR),
             AutoGoOpMode::Ctrl => Some(ks_common_ui::style::ACTIVE_COLOR),
             AutoGoOpMode::Learn => Some(ks_common_ui::style::WARNING_COLOR),
         }
@@ -57,6 +64,7 @@ impl InlineWidgetAutoEnum for AutoGoOpMode {
     fn text(&self) -> Option<String> {
         match self {
             AutoGoOpMode::Off => Some("OFF".to_string()),
+            AutoGoOpMode::Hint => Some("HNT".to_string()),
             AutoGoOpMode::Ctrl => Some("CTL".to_string()),
             AutoGoOpMode::Learn => Some("LRN".to_string()),
         }
@@ -93,7 +101,7 @@ impl AutoGoConsolidator {
         if p.is_finite() { p } else { 0.0 }
     }
 
-    pub fn requests_go(&self, cue: &Cue) -> bool {
+    pub fn requests_go(&mut self, cue: &Cue) -> bool {
         self.timecode.requests_go(cue) || self.follow.requests_go(cue)
     }
 
@@ -112,6 +120,9 @@ impl AutoGoConsolidator {
     }
     pub fn any_learn(&self) -> bool {
         self.follow.mode == AutoGoOpMode::Learn || self.timecode.mode == AutoGoOpMode::Learn
+    }
+    pub fn any_hint(&self) -> bool {
+        self.follow.mode == AutoGoOpMode::Hint || self.timecode.mode == AutoGoOpMode::Hint
     }
 
     pub fn toggle_learn(&mut self) {
@@ -138,7 +149,7 @@ pub struct AutoTimecode {
 
 impl AutoGo for AutoTimecode {
     fn time_until_go(&self, cue: &Cue) -> f64 {
-        if self.mode == AutoGoOpMode::Ctrl
+        if (self.mode == AutoGoOpMode::Ctrl || self.mode == AutoGoOpMode::Hint)
             && let Some(tc) = self.timecode_reader.timecode()
             && let Ok(actual_tc) = tc - self.offset
             && let Some(cue_tc) = cue.autogo_timecode
@@ -202,7 +213,7 @@ impl AutoFollow {
 
 impl AutoGo for AutoFollow {
     fn time_until_go(&self, cue: &Cue) -> f64 {
-        if self.mode == AutoGoOpMode::Ctrl
+        if (self.mode == AutoGoOpMode::Ctrl || self.mode == AutoGoOpMode::Hint)
             && let Some(ms) = cue.autogo_delay_ms
         {
             let s = ms as f64 / 1000.0;
