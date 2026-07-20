@@ -409,10 +409,36 @@ impl TekstApp {
         }
     }
 
-    fn go_flasher(&mut self, ui: &mut egui::Ui) {
+    fn countdown_bar(&mut self, ui: &mut egui::Ui) {
         let now = ui.ctx().input(|i| i.time);
 
-        let base_color = ks_common_ui::style::ACCENT_COLOR;
+        // When AFW or ATC is in learn mode, the bar is orange.
+        let base_color = if self.autogo.any_learn() {
+            Color32::ORANGE
+        // When AFW or ATC is on but idle, the bar is dark green.
+        } else if self.autogo.any_active()
+            && self.autogo.time_until_go(self.selected_cue()).is_infinite()
+        {
+            ks_common_ui::style::CUED_COLOR
+        // When AFW or ATC is on and counting down, and the next cue has no auto timing, the bar blinks green to notify the operator that manual takeover is required.
+        } else if self.autogo.time_until_go(self.selected_cue()).is_finite()
+            && let Some(seq) = self.selected_sequence()
+            && let Some(ncue) = seq.sequence.cues.get(seq.sequence.cue_pointer + 1)
+            && ncue.autogo_timecode.is_none()
+            && ncue.autogo_delay_ms.is_none()
+        {
+            if (3.0 * now).fract() > 0.5 {
+                ks_common_ui::style::ACTIVE_COLOR
+            } else {
+                ks_common_ui::style::CUED_COLOR
+            }
+        // When AFW or ATC is on and counting down, the bar is green.
+        } else if self.autogo.any_active() {
+            ks_common_ui::style::ACTIVE_COLOR
+        // When AFW and ATC are off or in hint mode, the bar is blue.
+        } else {
+            ks_common_ui::style::ACCENT_COLOR
+        };
 
         let mut color = base_color;
 
@@ -641,7 +667,7 @@ impl eframe::App for TekstApp {
                         950.0,
                         false,
                     );
-                    self.go_flasher(ui);
+                    self.countdown_bar(ui);
                     ui.heading("DISPLAY PREVIEW");
                     render_screen_preview(
                         ui,

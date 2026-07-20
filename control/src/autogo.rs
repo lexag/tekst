@@ -110,6 +110,9 @@ impl AutoGoConsolidator {
     pub fn any_active(&self) -> bool {
         self.follow.mode != AutoGoOpMode::Off || self.timecode.mode != AutoGoOpMode::Off
     }
+    pub fn any_learn(&self) -> bool {
+        self.follow.mode == AutoGoOpMode::Learn || self.timecode.mode == AutoGoOpMode::Learn
+    }
 
     pub fn toggle_learn(&mut self) {
         if self.timecode.mode == AutoGoOpMode::Learn {
