@@ -97,6 +97,7 @@ pub struct TekstApp {
     pub selected_sequence_idx: usize,
     pub file_pick_pointer: PatchPointer,
     pub global_style: GlobalStyle,
+    pub display_font_size: f32,
     #[serde(skip)]
     pub live_content: TextContent,
     pub default_cue: Cue,
@@ -119,6 +120,7 @@ impl Default for TekstApp {
         Self {
             file_dialog: Default::default(),
             ctx: ctx.clone(),
+            display_font_size: 48.0,
             sequences: Default::default(),
             selected_sequence_idx: Default::default(),
             file_pick_pointer: Default::default(),
@@ -618,14 +620,21 @@ impl eframe::App for TekstApp {
             ui.vertical(|ui| {
                 ui.vertical(|ui| {
                     ui.heading("DISPLAY PROGRAM");
-                    render_screen_preview(ui, &self.live_content, false, 48.0, 950.0, false);
+                    render_screen_preview(
+                        ui,
+                        &self.live_content,
+                        false,
+                        self.display_font_size,
+                        950.0,
+                        false,
+                    );
                     self.go_flasher(ui);
                     ui.heading("DISPLAY PREVIEW");
                     render_screen_preview(
                         ui,
                         &self.selected_cue_with_global(),
                         true,
-                        48.0,
+                        self.display_font_size,
                         950.0,
                         false,
                     );

@@ -82,6 +82,8 @@ pub enum ActionID {
     ToggleAutoscroll,
     ToggleAutoGo,
     GoCue(Cue),
+    DisplayFontShrink,
+    DisplayFontGrow,
 }
 
 #[allow(clippy::too_many_lines)]
@@ -140,6 +142,14 @@ pub fn exec_action(app: &mut TekstApp, action_id: ActionID) {
         ActionID::CommandLineCancel => app.commandline.clear(),
         ActionID::GoCue(cue) => app.go_cue(&cue),
         ActionID::ToggleAutoscroll => app.autoscroll = !app.autoscroll,
+        ActionID::DisplayFontGrow => {
+            app.display_font_size /= 0.8;
+            app.display_font_size = app.display_font_size.clamp(8.0, 72.0);
+        }
+        ActionID::DisplayFontShrink => {
+            app.display_font_size *= 0.8;
+            app.display_font_size = app.display_font_size.clamp(8.0, 72.0);
+        }
     }
 }
 
@@ -205,6 +215,9 @@ pub fn all_default_shortcuts() -> ShortcutMap {
 
     shortcuts.add(ActionID::ToggleAutoscroll, press(Key::R));
     shortcuts.add(ActionID::ToggleAutoGo, press(Key::T));
+
+    shortcuts.add(ActionID::DisplayFontGrow, press(Key::Plus));
+    shortcuts.add(ActionID::DisplayFontShrink, press(Key::Minus));
 
     shortcuts
 }
