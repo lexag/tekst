@@ -100,6 +100,7 @@ pub struct TekstApp {
     pub display_font_size: f32,
     #[serde(skip)]
     pub live_content: TextContent,
+    pub back_content: TextContent,
     pub default_cue: Cue,
     pub autoscroll: bool,
     pub op_mode: OpMode,
@@ -118,6 +119,7 @@ impl Default for TekstApp {
     fn default() -> Self {
         let ctx = Context::default();
         Self {
+            back_content: TextContent::default(),
             file_dialog: Default::default(),
             ctx: ctx.clone(),
             display_font_size: 48.0,
@@ -210,22 +212,26 @@ impl TekstApp {
         self.sequences[self.selected_sequence_idx].as_ref()
     }
 
-    pub fn go_cue(&mut self, cue: &Cue) {
+    pub fn go_cue(&mut self, cue: &Cue, learn: bool) {
         if self.op_mode == OpMode::Live {
-            self.try_send_payload(cue);
+            self.try_send_payload(cue.clone().with_global_style(self.global_style));
         }
 
-        let learned_cue = self.autogo.go_happened(self.selected_cue().clone());
-        *self.selected_cue_mut() = learned_cue;
+        if learn {
+            let learned_cue = self.autogo.go_happened(self.selected_cue().clone());
+            *self.selected_cue_mut() = learned_cue;
+        }
+
+        if self.live_content.text.iter().any(|s| !s.is_empty()) {
+            self.back_content = self.live_content.clone();
+        }
         self.live_content = cue.clone().with_global_style(self.global_style);
         self.reset_follow_time();
         self.ctx.request_repaint();
     }
 
-    fn try_send_payload(&mut self, cue: &Cue) {
-        let json = match serde_json::to_string(&Message::Show(DisplayContent::Text(
-            cue.clone().with_global_style(self.global_style),
-        ))) {
+    fn try_send_payload(&mut self, content: TextContent) {
+        let json = match serde_json::to_string(&Message::Show(DisplayContent::Text(content))) {
             Ok(val) => val,
             Err(e) => {
                 self.log_error(format!("Could not serialize text content: {e}"));
@@ -249,8 +255,15 @@ impl TekstApp {
 
     pub fn go(&mut self) {
         let new_cue = self.selected_cue().clone();
-        self.go_cue(&new_cue);
+        self.go_cue(&new_cue, true);
         self.swap_live_cue(new_cue.clone());
+    }
+
+    pub fn go_back(&mut self) {
+        if self.op_mode == OpMode::Live {
+            self.try_send_payload(self.back_content.clone());
+        }
+        self.live_content = self.back_content.clone();
     }
 
     fn swap_live_cue(&mut self, _new_cue: Cue) {

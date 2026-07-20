@@ -68,6 +68,7 @@ impl ShortcutMap {
 pub enum ActionID {
     ChangeSequence(usize),
     Go,
+    GoBack,
     SelectCueUp(usize),
     SelectCueDown(usize),
     SelectCueFirst,
@@ -94,6 +95,7 @@ pub fn exec_action(app: &mut TekstApp, action_id: ActionID) {
             app.autogo.dry_go_happened();
         }
         ActionID::Go => app.go(),
+        ActionID::GoBack => app.go_back(),
         ActionID::SelectCueUp(num) => {
             try_cue_sub(app, num);
             app.autogo.dry_go_happened();
@@ -140,7 +142,7 @@ pub fn exec_action(app: &mut TekstApp, action_id: ActionID) {
         }
         ActionID::CommandLineBackspace => app.commandline.backspace(),
         ActionID::CommandLineCancel => app.commandline.clear(),
-        ActionID::GoCue(cue) => app.go_cue(&cue),
+        ActionID::GoCue(cue) => app.go_cue(&cue, false),
         ActionID::ToggleAutoscroll => app.autoscroll = !app.autoscroll,
         ActionID::DisplayFontGrow => {
             app.display_font_size /= 0.8;
@@ -207,6 +209,7 @@ pub fn all_default_shortcuts() -> ShortcutMap {
     shortcuts.add(ActionID::SelectCueUp(1), press(Key::ArrowUp));
     shortcuts.add(ActionID::SelectCueDown(1), press(Key::ArrowDown));
     shortcuts.add(ActionID::GoCue(Cue::default()), press(Key::Delete));
+    shortcuts.add(ActionID::GoBack, press(Key::Insert));
 
     shortcuts.add(ActionID::SelectCueMarkNext, press(Key::PageDown));
     shortcuts.add(ActionID::SelectCueMarkPrev, press(Key::PageUp));
