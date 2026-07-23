@@ -4,7 +4,7 @@ use ks_common_generic::smpte::{FrameRate, Timecode, TimecodeError};
 use ks_common_generic::str::StaticString;
 use ks_common_ui::component_interface::{ConfigurationWidget, InlineWidget, InlineWidgetMenu};
 use ks_common_ui::components::selector_list_value;
-use local_ip_address::linux::local_ip;
+use local_ip_address::local_ip;
 use rodio::microphone::{InputConfig, MicrophoneBuilder};
 use rodio::{DeviceTrait, microphone::Microphone};
 use std::fmt::Display;

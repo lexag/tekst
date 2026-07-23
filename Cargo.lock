@@ -3800,7 +3800,7 @@ dependencies = [
 
 [[package]]
 name = "tekst"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "csv",
  "eframe",
@@ -3822,7 +3822,7 @@ dependencies = [
 
 [[package]]
 name = "tekst-common"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "cosmic-text",
  "egui",
@@ -3834,7 +3834,7 @@ dependencies = [
 
 [[package]]
 name = "tekst-receiver"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "eframe",
  "egui",
