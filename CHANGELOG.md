@@ -1,3 +1,22 @@
+## Version 0.2.0 - 2026-07-23
+
+### 🚀 Features
+
+- *(cuelist)* PgUp and PgDn navigate to mark
+- *(cuelist)* Home and End navigate to top and bottom of cuelist
+- *(cue preview)* Resize program and preview display with +/-
+- *(hotkeys)* Undo go and blank with INS key
+- *(hotkeys)* Toggle autogo learn with SHIFT+T
+- *(cue preview)* Countdown bar colors
+- *(autogo)* Hint mode
+- *(timecode)* ClicKS network timecode integration
+
+### 🐛 Bug Fixes
+
+- *(cuelist)* Fix cuelist width too small
+- *(cuelist)* APPEND CUE now autoidents <ident>.1
+- *(driver)* Fix syntax error
+- *(cmdline)* Remove debug print
 ## Version 0.1.0 - 2026-07-14
 
 ### 💼 Other
@@ -43,3 +62,5 @@
 - Git cliff init
 - Fix cargo profiles
 - Update CHANGELOG
+- Update CHANGELOG.md and release 0.1.0
+- Allow dirty release yml
