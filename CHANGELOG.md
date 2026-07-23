@@ -1,3 +1,8 @@
+## Version 0.2.1 - 2026-07-23
+
+### 🐛 Bug Fixes
+
+- *(timecode)* Fix build failure due to local ip on non-linux platforms
 ## Version 0.2.0 - 2026-07-23
 
 ### 🚀 Features
@@ -17,6 +22,10 @@
 - *(cuelist)* APPEND CUE now autoidents <ident>.1
 - *(driver)* Fix syntax error
 - *(cmdline)* Remove debug print
+
+### ⚙️ Miscellaneous Tasks
+
+- Update CHANGELOG.md and release 0.2.0
 ## Version 0.1.0 - 2026-07-14
 
 ### 💼 Other
