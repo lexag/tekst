@@ -383,7 +383,7 @@ fn try_parse_seq_ident(app: &mut TekstApp, mut it: Iter<'_, CommandLineToken>) -
 }
 
 fn parse_cue_ident(app: &mut TekstApp, it: &mut Iter<'_, CommandLineToken>) -> Option<Vec<usize>> {
-    println!("{:?}", it.clone());
+    //println!("{:?}", it.clone());
     let current_cue = app.selected_sequence()?;
     let start_idx = parse_single_ident(it, current_cue)?;
 
