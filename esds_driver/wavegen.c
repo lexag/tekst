@@ -25,7 +25,7 @@ static int animation_clock = 0;
 #define PACKET_LEN (HEADER_LEN + DATA_LEN)
 #define BUFFER_LEN (PACKET_LEN * SCAN_ROWS * NUM_DISPLAYS)
 
-#define BLANK_MAX_LEN (DATA_LEN * 7 / 4)
+#define BLANK_MAX_LEN (DATA_LEN * 13 / 8)
 #define BLANK_MIN_LEN HEADER_LEN
 static int blank_start_idxs[SCAN_ROWS * NUM_DISPLAYS] = {0};
 static int blank_counter = 0;
@@ -140,6 +140,7 @@ int animation_done() {
 }
 
 int build_wave(uint8_t img_buf[], uint8_t out[]) {
+  //printf("building wave\n");
   wp = 0;
   const int PIXEL_BITS = DISPLAY_HEIGHT * DISPLAY_WIDTH / 8;
   const int px_start = DISPLAY_HEIGHT * NUM_DISPLAYS;
