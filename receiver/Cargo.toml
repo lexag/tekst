@@ -11,11 +11,11 @@ local-ip-address = "0.6.13"
 rppal = { version = "0.22.1", optional = true } 
 serde = "1.0.228"
 serde_json = "1.0.150"
-tekst-common = { path = "../common", features = [ "egui" ] }
+tekst-common = { path = "../common", features = [] }
 
 
 [features]
 default = ["desktop", "startup-checks"]
 embedded = ["dep:rppal", "startup-checks"]
-desktop = ["dep:egui", "dep:eframe"]
+desktop = ["dep:egui", "dep:eframe", "tekst-common/egui"]
 startup-checks = []
