@@ -211,7 +211,7 @@ int init() {
             wave_dirty = false;
         }
     }
-    sleep_ms(10);
+    sleep_ms(15);
   }
 }
 

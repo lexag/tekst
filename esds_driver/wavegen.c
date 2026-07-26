@@ -25,7 +25,8 @@ static int animation_clock = 0;
 #define PACKET_LEN (HEADER_LEN + DATA_LEN)
 #define BUFFER_LEN (PACKET_LEN * SCAN_ROWS * NUM_DISPLAYS)
 
-#define BLANK_MAX_LEN (DATA_LEN * 13 / 8)
+#define BLANK_MAX_LEN (DATA_LEN * 14 / 8)
+//#define BLANK_MAX_LEN (HEADER_LEN + 1)
 #define BLANK_MIN_LEN HEADER_LEN
 static int blank_start_idxs[SCAN_ROWS * NUM_DISPLAYS] = {0};
 static int blank_counter = 0;
@@ -64,12 +65,12 @@ void write(uint8_t out[], int ticks) {
 
 void data_tick(uint8_t out[], int idx, int dat_r, int dat_g, int brightness) {
   clk(1);
-  if (current_red != !dat_r) {
+  if (current_green != !dat_g) {
     set_pin(pin(DATA_GREEN), !dat_g);
     current_green = !dat_g;
   }
 
-  if (current_green != !dat_g) {
+  if (current_red != !dat_r) {
     set_pin(pin(DATA_RED), !dat_r);
     current_red = !dat_r;
   }
@@ -141,11 +142,14 @@ int animation_done() {
 
 int build_wave(uint8_t img_buf[], uint8_t out[]) {
   //printf("building wave\n");
+  //for (int i = 0; i < 32; i++) {
+  //  printf("%d: %d\n", i, img_buf[i]);
+  //}
   wp = 0;
   const int PIXEL_BITS = DISPLAY_HEIGHT * DISPLAY_WIDTH / 8;
-  const int px_start = DISPLAY_HEIGHT * NUM_DISPLAYS;
+  const int px_start = 32;
 
-  for (int i = 0; i < DISPLAY_HEIGHT + 1; i++) {
+  for (int i = 0; i < DISPLAY_HEIGHT; i++) {
     int row = DISPLAY_HEIGHT - 1 - (i % DISPLAY_HEIGHT);
     // int bright = rx_buffer[row];
     int bright = img_buf[0];
@@ -159,7 +163,7 @@ int build_wave(uint8_t img_buf[], uint8_t out[]) {
       for (int x = 0; x < DISPLAY_WIDTH; x++) {
         int px_offs = x / 8 + row_offs;
         uint8_t bit_idx = x % 8;
-        uint8_t mask = (0x1 << (7 - (bit_idx))) > 0;
+        uint8_t mask = 0x1 << (7 - (bit_idx));
         uint8_t red = img_buf[red_offs + px_offs] & mask;
         uint8_t green = img_buf[green_offs + px_offs] & mask;
 
@@ -180,7 +184,7 @@ int build_wave(uint8_t img_buf[], uint8_t out[]) {
   for (int i = 0; i < blank_counter; i++) {
     int start_idx = blank_start_idxs[i];
     blank_start_idxs[i] = 0;
-    int len = BLANK_MIN_LEN + (BLANK_MAX_LEN - BLANK_MIN_LEN) * img_buf[brightness_step] / 255;
+    int len = BLANK_MIN_LEN + (BLANK_MAX_LEN - BLANK_MIN_LEN) * (255 - img_buf[brightness_step]) / 255;
     pin_address_offset = 5 * (i % 2);
     uint8_t mask = 1u << pin(BLANK);
     for (int idx = start_idx; idx < start_idx + len; idx++) {
@@ -190,10 +194,12 @@ int build_wave(uint8_t img_buf[], uint8_t out[]) {
   blank_counter = 0;
 
   // first byte of img_buf is clock divider
-  if (brightness_step < 31 && animation_clock % img_buf[0] == 0) {
-    brightness_step++;
+  if (brightness_step < 31) {
+    animation_clock++;
+    if (animation_clock % img_buf[0] == 0) {
+      brightness_step++;
+    }
   }
-  animation_clock++;
 
   return wp;
 }
