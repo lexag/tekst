@@ -8,7 +8,7 @@ const POINT_SIZE: f32 = 3.0;
 mod app;
 
 #[cfg(feature = "embedded")]
-mod spi;
+mod i2c;
 
 mod handler;
 mod receiver;
@@ -38,16 +38,16 @@ fn main() -> eframe::Result {
 #[cfg(feature = "embedded")]
 fn main() {
     use crate::handler::Handler;
-    use crate::spi;
+    use crate::i2c;
 
     let mut handler = Handler::new();
-    let mut spi = spi::SpiDriver::new();
+    let mut i2c = i2c::I2CDriver::new();
 
     loop {
         use std::time::Duration;
 
         handler.tick(|buf| {
-            spi.send_buffer(buf);
+            i2c.send_buffer(buf);
         });
         std::thread::sleep(Duration::from_millis(100))
     }

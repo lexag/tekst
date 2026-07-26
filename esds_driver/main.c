@@ -4,6 +4,7 @@
 #include "pico/stdlib.h"
 #include <math.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <string.h>
 // #include "hardware/spi.h"
 #include "hardware/i2c.h"
@@ -32,12 +33,13 @@ static uint8_t
     rx_buffer[DISPLAY_HEIGHT +
               DISPLAY_WIDTH * DISPLAY_HEIGHT * COLOR_DEPTH * NUM_DISPLAYS / 8 +
               DISPLAY_WIDTH] = {0xFF};
-static uint32_t rx_index = 0;
+static volatile uint32_t rx_index = 0;
 static uint8_t rx_ident = 0;
 
 static volatile bool wave_dirty = 0;
+static volatile bool swap_pending = 0;
 static int row_index = 0;
-static int actual_buffer_len = 0;
+static volatile int actual_buffer_len = 0;
 
 static int brightness_ptr = 0;
 
@@ -68,62 +70,67 @@ void __isr i2c1_irq_handler(void) {
   if (status & I2C_IC_RAW_INTR_STAT_STOP_DET_BITS) {
     hw->clr_stop_det;
     rx_ident += 1;
-    // flip_led();
+    //flip_led();
 
     if (rx_ident == 3) {
       restart_animation();
       wave_dirty = true;
-      // flip_led();
+      flip_led();
       rx_index = 0;
       rx_ident = 0;
     }
   }
 }
 void dma_irq_handler() {
-  dma_hw->ints0 = 1u << dma_chan_data;
+  //dma_hw->ints0 = 1u << dma_chan_data;
 
   dma_channel_acknowledge_irq0(dma_chan_data);
 
-  dma_channel_wait_for_finish_blocking(dma_chan_data);
-  dma_channel_set_read_addr(dma_chan_data, read_wave, false);
+  if (swap_pending) {
+    uint8_t (*temp)[BUFFER_LEN] = read_wave;
+    read_wave = write_wave;
+    write_wave = temp;
+    swap_pending = false;
+  }
+
+  //dma_channel_wait_for_finish_blocking(dma_chan_data);
+  dma_channel_set_read_addr(dma_chan_data, *read_wave, false);
   dma_channel_set_trans_count(dma_chan_data, actual_buffer_len, false);
   dma_channel_start(dma_chan_data);
 }
 
 int new_buffer() {
+  //flip_led();
   actual_buffer_len = build_wave(rx_buffer, *write_wave);
-  uint8_t (*temp)[BUFFER_LEN] = read_wave;
-  read_wave = write_wave;
-  write_wave = temp;
+  swap_pending = true;
 }
 
-int main() {
+int init() {
+  printf("filling buffer with 0xFF\n");
   memset(rx_buffer, 0xFF, sizeof(rx_buffer));
-  actual_buffer_len = build_wave(rx_buffer, *write_wave);
+  new_buffer();
 
-  stdio_init_all();
-
+  // ===== ONBOARD LED SETUP =====
+  printf("setup gpio\n");
   gpio_init(PIN_DEBUG);
   gpio_set_dir(PIN_DEBUG, GPIO_OUT);
 
+
+
+
   // ===== PIO SETUP =====
+  printf("setup pio\n");
+
   PIO pio = pio0;
   uint sm = 0;
-
   uint offset = pio_add_program(pio, &pinstream_program);
-
   pio_sm_config c = pinstream_program_get_default_config(offset);
 
   // Map OUT to GPIO pins
   sm_config_set_out_pins(&c, PIN_BASE, PIN_COUNT);
   pio_sm_set_consecutive_pindirs(pio, sm, PIN_BASE, PIN_COUNT, true);
 
-  // Shift configuration:
-  // - shift_left = false => shift right (common for DMA-fed data)
-  // - autopull enabled every 32 bits
   sm_config_set_out_shift(&c, false, true, 8);
-
-  // FIFO join for TX (important for streaming)
   sm_config_set_fifo_join(&c, PIO_FIFO_JOIN_TX);
 
   // Set clock divider (adjust speed here)
@@ -135,11 +142,16 @@ int main() {
     pio_gpio_init(pio, i);
     gpio_set_function(i, GPIO_FUNC_PIO0);
   }
-
+  
+  pio_sm_clear_fifos(pio, sm);
+  pio_sm_restart(pio, sm);
   pio_sm_init(pio, sm, offset, &c);
   pio_sm_set_enabled(pio, sm, true);
 
+
+
   // ===== DMA SETUP =====
+  printf("setup dma\n");
 
   dma_chan_data = dma_claim_unused_channel(true);
 
@@ -151,26 +163,20 @@ int main() {
   channel_config_set_write_increment(&dma_chan_config_data, false);
   channel_config_set_dreq(&dma_chan_config_data, pio_get_dreq(pio, sm, true));
   dma_channel_configure(dma_chan_data, &dma_chan_config_data, &pio->txf[sm],
-                        *read_wave, actual_buffer_len, true);
+                        *read_wave, actual_buffer_len, false);
 
   dma_channel_set_irq0_enabled(dma_chan_data, true);
   irq_set_exclusive_handler(DMA_IRQ_0, dma_irq_handler);
   irq_set_enabled(DMA_IRQ_0, true);
+  dma_channel_start(dma_chan_data);
 
-  // === SPI SETUP ===
-  // gpio_set_function(PIN_MISO, GPIO_FUNC_SPI);
-  // gpio_set_function(PIN_MOSI, GPIO_FUNC_SPI);
-  // gpio_set_function(PIN_SCK,  GPIO_FUNC_SPI);
-  // gpio_set_function(PIN_CS,   GPIO_FUNC_SPI);
-  // spi_init(SPI_PORT, 1000000);
-  // spi_set_format(SPI_PORT, 8, SPI_CPOL_0, SPI_CPHA_0, SPI_MSB_FIRST);
-  // spi_set_slave(SPI_PORT, true);
 
-  // spi_get_hw(SPI_PORT)->imsc = SPI_SSPIMSC_RXIM_BITS;
-  // irq_set_exclusive_handler(SPI0_IRQ, spi0_irq_handler);
-  // irq_set_enabled(SPI0_IRQ, true);
 
-  i2c_init(i2c1, 100000000);
+
+  // ===== I2C setup =====
+  printf("setup i2c\n");
+
+  i2c_init(i2c1, 100000);
 
   gpio_set_function(PIN_SDA, GPIO_FUNC_I2C);
   gpio_set_function(PIN_SCL, GPIO_FUNC_I2C);
@@ -180,13 +186,23 @@ int main() {
 
   i2c_set_slave_mode(i2c1, true, 0x30);
 
-  irq_set_exclusive_handler(I2C1_IRQ, i2c1_irq_handler);
-  irq_set_enabled(I2C1_IRQ, true);
-
   // Enable the interrupts we care about
+  (void)i2c_get_hw(i2c1)->clr_intr;
   i2c_get_hw(i2c1)->intr_mask =
       I2C_IC_INTR_MASK_M_RX_FULL_BITS | I2C_IC_INTR_MASK_M_STOP_DET_BITS;
 
+  irq_set_exclusive_handler(I2C1_IRQ, i2c1_irq_handler);
+  irq_set_enabled(I2C1_IRQ, true);
+
+
+
+
+
+  printf("beginning loop\n");
+  //printf("write_wave:\n");
+  //for (int i = 0; i < actual_buffer_len; i++) {
+  //  printf("%d\n", write_wave[i]);
+  //}
   while (true) {
     if (wave_dirty && rx_index == 0) {
         //flip_led();
@@ -195,5 +211,16 @@ int main() {
             wave_dirty = false;
         }
     }
+    sleep_ms(15);
   }
+}
+
+int main() {
+    stdio_init_all();
+
+    sleep_ms(2000);
+
+    printf("boot\n");
+
+    init();
 }

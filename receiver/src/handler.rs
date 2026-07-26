@@ -133,7 +133,7 @@ impl Handler {
                                 (send_closure)(self.display);
                                 self.state = State::InTransitCountdown(
                                     content.clone(),
-                                    content.transition.duration(),
+                                    content.transition.duration() * 1.8,
                                 );
                             }
                         }

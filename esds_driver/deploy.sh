@@ -12,5 +12,5 @@ make -j$(nproc)
 
 cd ..
 
-picotool load build/pio_dma_stream.elf -f
+picotool load build/tekst_driver.elf -f
 picotool reboot

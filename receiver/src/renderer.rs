@@ -85,6 +85,9 @@ impl DisplayBuffer {
             }
             divider += 1;
         }
+        // the last step can't be part of fade, so we remove it
+        // it needs to be the final brightness
+        num_steps -= 1;
         let step_size = 255 / num_steps;
         let mut v = if fade_up { 0 } else { max_bright };
         self.brightnesses.fill(max_bright - v);
@@ -285,6 +288,8 @@ impl TextRenderer {
         });
         if text.transition != Transition::NoTransition {
             img.set_animation(text.brightness, true, text.transition.duration());
+        } else {
+            img.clock_divider = 255;
         }
         img
     }
