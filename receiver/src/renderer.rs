@@ -288,6 +288,8 @@ impl TextRenderer {
         });
         if text.transition != Transition::NoTransition {
             img.set_animation(text.brightness, true, text.transition.duration());
+        } else {
+            img.clock_divider = 255;
         }
         img
     }
