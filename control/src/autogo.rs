@@ -1,7 +1,7 @@
 use crate::{app::TekstApp, cue::Cue, timecode::TimecodeReader};
 use egui::Context;
 use ks_common_generic::smpte::{Timecode, TimecodeOffset};
-use ks_common_ui::{autoenum::InlineWidgetAutoEnum, component_interface::InlineWidget};
+use ks_common_ui::traits::InlineWidgetAutoEnum;
 use std::{fmt::Display, ops::Sub};
 
 pub trait AutoGo {

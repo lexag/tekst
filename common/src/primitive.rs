@@ -1,7 +1,7 @@
 #[cfg(feature = "egui")]
 use egui::{Align, Color32, Response};
 #[cfg(feature = "egui")]
-use ks_common_ui::autoenum::InlineWidgetAutoEnum;
+use ks_common_ui::traits::InlineWidgetAutoEnum;
 use std::fmt::Display;
 
 #[derive(

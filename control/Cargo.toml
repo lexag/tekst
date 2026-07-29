@@ -21,9 +21,8 @@ hound = "3.5.1"
 rodio = "0.22.2"
 serde = { version = "1.0.228", features = ["serde_derive"] }
 ks-common-ui = { git = "https://github.com/lexag/ks-common", }
-#ks-common-ui = { path = "../clicks/common/ui" } 
-ks-common-generic = { git = "https://github.com/lexag/ks-common", features = ["serde"] } 
-ks-common-clicks = { git = "https://github.com/lexag/ks-common", features = ["serde"] } 
+ks-common-generic = { git = "https://github.com/lexag/ks-common", version = "2.3.0", features = ["serde"] } 
+ks-common-clicks = { git = "https://github.com/lexag/ks-common", version = "2.3.0", features = ["serde"] } 
 tekst-common = { path = "../common", features = ["egui"] }
 serde_json = "1.0.150"
 local-ip-address = "0.6.13"

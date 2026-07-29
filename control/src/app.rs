@@ -14,9 +14,13 @@ use egui::{
 };
 use egui_file_dialog::FileDialog;
 use ks_common_ui::{
-    autoenum::InlineWidgetAutoEnum,
-    component_interface::{ConfigurationWidget, InlineWidget, InlineWidgetMenu},
+    components::Button,
+    material_icons::Icon,
     style,
+    traits::{
+        AutoInlineWidgetMenu, ConfigurationWidget, InlineWidget, InlineWidgetAutoEnum,
+        InlineWidgetMenu,
+    },
 };
 use std::{f32, fmt::Display};
 use tekst_common::{
@@ -368,27 +372,30 @@ impl TekstApp {
     }
 
     fn global_settings_bar(&mut self, ui: &mut egui::Ui) {
-        egui::Grid::new("global-settings-bar").show(ui, |ui| {
-            ui.monospace("SCROLL");
-            ui.monospace("BRIGHT");
-            ui.monospace("FADE");
-            ui.monospace("FONT");
-            ui.monospace("COLOR");
-            ui.monospace("ALIGN");
-            ui.end_row();
+        ui.horizontal_top(|ui| {
+            ks_common_ui::components::ToggleButton::new(
+                &mut self.autoscroll,
+                ks_common_ui::material_icons::Icon::Air,
+                style::ACCENT_COLOR,
+            )
+            .ui(ui);
 
-            self.autoscroll.inline_widget(ui);
             self.global_style
                 .brightness
-                .clone()
-                .inline_widget_menu(ui, |ui| {
-                    self.global_style.brightness.draw_configuration(ui);
-                });
+                .auto_inline_widget_menu(ui, "Brightness");
 
-            self.global_style.fade_speed.autoenum_inline_widget_menu(ui);
-            self.global_style.text_font.autoenum_inline_widget_menu(ui);
-            self.global_style.text_color.autoenum_inline_widget_menu(ui);
-            self.global_style.text_align.autoenum_inline_widget_menu(ui);
+            self.global_style
+                .fade_speed
+                .autoenum_inline_widget_menu(ui, "Transition");
+            self.global_style
+                .text_font
+                .autoenum_inline_widget_menu(ui, "Font");
+            self.global_style
+                .text_color
+                .autoenum_inline_widget_menu(ui, "Color");
+            self.global_style
+                .text_align
+                .autoenum_inline_widget_menu(ui, "Align");
         });
     }
 
@@ -552,20 +559,28 @@ impl eframe::App for TekstApp {
             }
         }
 
-        // Put your widgets into a `SidePanel`, `TopBottomPanel`, `CentralPanel`, `Window` or `Area`.
-        // For inspiration and more examples, go to https://emilk.github.io/egui
-
         egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
-            // The top panel is often a good place for a menu bar:
-
-            egui::MenuBar::new().ui(ui, |ui| {
-                ui.menu_button("File", |ui| {
-                    if ui.button("Save all sequences").clicked() {
+            ui.horizontal_top(|ui| {
+                egui::Popup::menu(
+                    &ks_common_ui::components::Button::new("File")
+                        .icon(ks_common_ui::material_icons::Icon::Topic)
+                        .ui(ui),
+                )
+                .show(|ui| {
+                    if Button::new("Save all sequences")
+                        .icon(Icon::Save)
+                        .ui(ui)
+                        .clicked()
+                    {
                         for i in 0..self.sequences.len() {
                             self.save_sequence(i);
                         }
                     }
-                    if ui.button("Write demo sequence file").clicked() {
+                    if Button::new("Write demo sequence file")
+                        .icon(Icon::NoteAdd)
+                        .ui(ui)
+                        .clicked()
+                    {
                         SequenceSlot {
                             path: "".into(),
                             sequence: Sequence::example(),
@@ -576,70 +591,46 @@ impl eframe::App for TekstApp {
                                 .join("example_sequence.csv"),
                         );
                     }
-
-                    //if ui.button("Send [.] blanking message").clicked() {
-                    //    self.network_writer
-                    //        .send_payload(&Cue::default().make_payload_with_data(vec![b'.']));
-                    //}
-                    //if ui.button("Send [ ] blanking message").clicked() {
-                    //    self.network_writer
-                    //        .send_payload(&Cue::default().make_payload_with_data(vec![]));
-                    //}
-                    if ui.button("Quit").clicked() {
+                    if Button::new("Quit").icon(Icon::ExitToApp).ui(ui).clicked() {
                         ui.ctx().send_viewport_cmd(egui::ViewportCommand::Close);
                     }
                 });
-                egui::Grid::new("upper_statusbar_grid").show(ui, |ui| {
-                    ui.monospace("LTC INPUT");
-                    ui.monospace("LTC DELAY");
-                    ui.monospace("FOLLOW TIME");
-                    ui.monospace("DISPLAY IP");
-                    ui.monospace("AFW");
-                    ui.monospace("ATC");
-                    ui.monospace("MODE");
 
-                    ui.end_row();
+                self.autogo
+                    .timecode
+                    .timecode_reader
+                    .timecode()
+                    .inline_widget_menu(ui, "LTC Input", |ui| {
+                        self.autogo.timecode.timecode_reader.draw_configuration(ui);
+                    });
+                self.autogo
+                    .timecode
+                    .offset
+                    .clone()
+                    .inline_widget_menu(ui, "LTC Delay", |ui| {
+                        self.autogo.timecode.offset.draw_configuration(ui);
+                    });
 
-                    self.autogo
-                        .timecode
-                        .timecode_reader
-                        .timecode()
-                        .inline_widget_menu(ui, |ui| {
-                            self.autogo.timecode.timecode_reader.draw_configuration(ui);
-                        });
-                    self.autogo
-                        .timecode
-                        .offset
-                        .clone()
-                        .inline_widget_menu(ui, |ui| {
-                            self.autogo.timecode.offset.draw_configuration(ui);
-                        });
+                ((self.autogo.follow.elapsed() * 1000.0).round() / 1000.0)
+                    .inline_widget(ui, "Follow time");
 
-                    (self.autogo.follow.elapsed().min(999.999) as f32).inline_widget(ui);
+                self.network_writer
+                    .config_mut()
+                    .addr
+                    .clone()
+                    .inline_widget_menu(ui, "Display IP", |ui| {
+                        self.network_writer.config_mut().addr.draw_configuration(ui);
+                    });
 
-                    self.network_writer
-                        .config_mut()
-                        .addr
-                        .clone()
-                        .inline_widget_menu(ui, |ui| {
-                            self.network_writer.config_mut().addr.draw_configuration(ui);
-                        });
-
-                    self.autogo
-                        .follow
-                        .mode_mut()
-                        .autoenum_inline_widget_menu(ui);
-                    self.autogo
-                        .timecode
-                        .mode_mut()
-                        .autoenum_inline_widget_menu(ui);
-                    self.op_mode.autoenum_inline_widget_menu(ui);
-                });
-
-                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    powered_by_egui_and_eframe(ui);
-                    egui::warn_if_debug_build(ui);
-                });
+                self.autogo
+                    .follow
+                    .mode_mut()
+                    .autoenum_inline_widget_menu(ui, "AFW");
+                self.autogo
+                    .timecode
+                    .mode_mut()
+                    .autoenum_inline_widget_menu(ui, "ATC");
+                self.op_mode.autoenum_inline_widget_menu(ui, "Mode");
             });
         });
 

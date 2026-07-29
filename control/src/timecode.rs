@@ -2,8 +2,8 @@ use ks_common_generic::network::IpAddress;
 use ks_common_generic::smpte::ltc::{LtcReader, LtcReaderConfig};
 use ks_common_generic::smpte::{FrameRate, Timecode, TimecodeError};
 use ks_common_generic::str::StaticString;
-use ks_common_ui::component_interface::{ConfigurationWidget, InlineWidget, InlineWidgetMenu};
 use ks_common_ui::components::selector_list_value;
+use ks_common_ui::traits::{ConfigurationWidget, InlineWidget};
 use local_ip_address::local_ip;
 use rodio::microphone::{InputConfig, MicrophoneBuilder};
 use rodio::{DeviceTrait, microphone::Microphone};
@@ -274,7 +274,6 @@ impl ConfigurationWidget for TimecodeReader {
                     FrameRate::Fps30,
                 ],
                 &self.frame_rate(),
-                "Frame Rate",
             ) {
                 self.frame_rate = selection;
             }
@@ -286,7 +285,6 @@ impl ConfigurationWidget for TimecodeReader {
                 ui,
                 OPTIONS,
                 self.selected_device_type(),
-                "Timecode Device",
             ) {
                 self.selected_device = OPTIONS[tc_type_selection];
             }
@@ -298,7 +296,6 @@ impl ConfigurationWidget for TimecodeReader {
                         ui,
                         &self.available_devices,
                         *device_idx,
-                        "Audio Device",
                     ) {
                         *device_idx = Some(selection);
                     }
@@ -306,7 +303,7 @@ impl ConfigurationWidget for TimecodeReader {
 
                 TimecodeDevice::ClicksTCDevice(addr) => {
                     ui.vertical(|ui| {
-                        addr.inline_widget(ui);
+                        addr.inline_widget(ui, "ClicKS IP");
                         addr.draw_configuration(ui);
                     });
                 }
