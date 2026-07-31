@@ -2139,7 +2139,7 @@ checksum = "e2db585e1d738fc771bf08a151420d3ed193d9d895a36df7f6f8a9456b911ddc"
 [[package]]
 name = "ks-common-clicks"
 version = "2.3.0"
-source = "git+https://github.com/lexag/ks-common#f9d5b91b1deeba59451494f6c0329e2f277f3400"
+source = "git+https://github.com/lexag/ks-common#5716aaa82b98480af68226412ad3a507ae2a86bc"
 dependencies = [
  "bitflags 2.13.1",
  "ks-common-generic",
@@ -2150,7 +2150,7 @@ dependencies = [
 [[package]]
 name = "ks-common-generic"
 version = "2.3.0"
-source = "git+https://github.com/lexag/ks-common#f9d5b91b1deeba59451494f6c0329e2f277f3400"
+source = "git+https://github.com/lexag/ks-common#5716aaa82b98480af68226412ad3a507ae2a86bc"
 dependencies = [
  "bitflags 2.13.1",
  "serde",
@@ -2159,7 +2159,7 @@ dependencies = [
 [[package]]
 name = "ks-common-ui"
 version = "2.3.0"
-source = "git+https://github.com/lexag/ks-common#f9d5b91b1deeba59451494f6c0329e2f277f3400"
+source = "git+https://github.com/lexag/ks-common#5716aaa82b98480af68226412ad3a507ae2a86bc"
 dependencies = [
  "backtrace",
  "egui",

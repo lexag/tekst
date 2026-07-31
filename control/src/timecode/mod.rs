@@ -54,6 +54,10 @@ pub enum LTCReaderError {
     RodioMicrophoneList(rodio::microphone::ListError),
     RodioInternal,
     NoSelection,
+    IO(std::io::Error),
+    IpParse(std::net::AddrParseError),
+    BinaryParse(postcard::Error),
+    LocalIP(local_ip_address::Error),
     Anonymous(Box<dyn Any + Send>),
     Unknown,
 }
@@ -95,6 +99,30 @@ impl From<Box<dyn Any + Send>> for LTCReaderError {
 impl From<ks_common_generic::smpte::TimecodeError> for LTCReaderError {
     fn from(value: ks_common_generic::smpte::TimecodeError) -> Self {
         Self::Timecode(value)
+    }
+}
+
+impl From<std::io::Error> for LTCReaderError {
+    fn from(value: std::io::Error) -> Self {
+        Self::IO(value)
+    }
+}
+
+impl From<local_ip_address::Error> for LTCReaderError {
+    fn from(value: local_ip_address::Error) -> Self {
+        Self::LocalIP(value)
+    }
+}
+
+impl From<std::net::AddrParseError> for LTCReaderError {
+    fn from(value: std::net::AddrParseError) -> Self {
+        Self::IpParse(value)
+    }
+}
+
+impl From<postcard::Error> for LTCReaderError {
+    fn from(value: postcard::Error) -> Self {
+        Self::BinaryParse(value)
     }
 }
 

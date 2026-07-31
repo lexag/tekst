@@ -32,10 +32,12 @@ use std::{
 pub struct AudioLTCReader {
     last_seen_timecode: TimecodeHypothesis,
     expected_frame_rate: FrameRate,
-    listening_thread: Option<JoinHandle<()>>,
+
+    pub listening_thread: Option<JoinHandle<()>>,
     request_thread_stop: Arc<Mutex<bool>>,
     recv: Receiver<Result<TimecodeHypothesis, LTCReaderError>>,
     send: Sender<Result<TimecodeHypothesis, LTCReaderError>>,
+
     available_devices: Vec<String>,
     selected_device: Option<usize>,
 }
