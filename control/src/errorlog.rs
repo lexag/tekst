@@ -1,3 +1,8 @@
+use egui::Widget;
+use ks_common_ui::{
+    components, style,
+    traits::{InlineWidget, InlineWidgetMenu},
+};
 use std::{
     fmt::Display,
     hash::{DefaultHasher, Hash, Hasher},
@@ -83,5 +88,44 @@ impl ErrorLog {
 
     pub fn num_errors(&self) -> usize {
         self.errors.len()
+    }
+}
+
+impl InlineWidgetMenu for ErrorLog {
+    fn inline_widget_menu(
+        &mut self,
+        ui: &mut egui::Ui,
+        label: &str,
+        add_contents: impl FnOnce(&mut egui::Ui),
+    ) -> egui::Response {
+        components::TextDisplay::fullwide(&match self.primary_error() {
+            Some(e) => format!("(1/{}) {}", self.num_errors(), e),
+            None => "(0/0)".to_string(),
+        })
+        .label(label)
+        .color_o(
+            self.num_errors()
+                .gt(&0)
+                .then_some(ui.visuals().error_fg_color),
+        )
+        .ui(ui)
+    }
+}
+
+pub fn log_error_msg(ui: &egui::Ui, e: &impl ToString) {
+    ui.ctx()
+        .data_mut(|w| *w.get_temp_mut_or("tekst.error.msg".into(), String::new()) = e.to_string());
+}
+
+pub fn log_if_error<T, E>(ui: &egui::Ui, r: Result<T, E>) -> Option<T>
+where
+    E: ToString,
+{
+    match r {
+        Ok(v) => Some(v),
+        Err(e) => {
+            log_error_msg(ui, &e);
+            None
+        }
     }
 }

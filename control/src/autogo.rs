@@ -1,5 +1,6 @@
-use crate::{app::TekstApp, cue::Cue, timecode::TimecodeReader};
+use crate::{app::TekstApp, cue::Cue, timecode::collector::TimecodeCollector};
 use egui::Context;
+use ks_common_generic::smpte::ltc::TimecodeReader;
 use ks_common_generic::smpte::{Timecode, TimecodeOffset};
 use ks_common_ui::traits::InlineWidgetAutoEnum;
 use std::{fmt::Display, ops::Sub};
@@ -142,7 +143,7 @@ impl AutoGoConsolidator {
 #[derive(serde::Deserialize, serde::Serialize)]
 pub struct AutoTimecode {
     #[serde(skip)]
-    pub timecode_reader: TimecodeReader,
+    pub timecode_reader: TimecodeCollector,
     pub offset: TimecodeOffset,
     pub mode: AutoGoOpMode,
 }
@@ -150,7 +151,7 @@ pub struct AutoTimecode {
 impl AutoGo for AutoTimecode {
     fn time_until_go(&self, cue: &Cue) -> f64 {
         if (self.mode == AutoGoOpMode::Ctrl || self.mode == AutoGoOpMode::Hint)
-            && let Some(tc) = self.timecode_reader.timecode()
+            && let Ok(Some(tc)) = self.timecode_reader.read_timecode()
             && let Ok(actual_tc) = tc - self.offset
             && let Some(cue_tc) = cue.autogo_timecode
             && self.timecode_reader.confidence() > 0.75
@@ -166,7 +167,7 @@ impl AutoGo for AutoTimecode {
 
     fn go_happened(&mut self, cue: &mut Cue) {
         if self.mode == AutoGoOpMode::Learn
-            && let Some(tc) = self.timecode_reader.timecode()
+            && let Ok(Some(tc)) = self.timecode_reader.read_timecode()
         {
             cue.autogo_timecode = Some(tc);
         }
@@ -182,7 +183,7 @@ impl AutoTimecode {
         Self {
             mode: AutoGoOpMode::Off,
             offset: TimecodeOffset::new(Timecode::default(), false),
-            timecode_reader: TimecodeReader::new(),
+            timecode_reader: TimecodeCollector::new(),
         }
     }
 }

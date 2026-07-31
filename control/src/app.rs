@@ -19,7 +19,7 @@ use ks_common_ui::{
     style,
     traits::{
         AutoInlineWidgetMenu, ConfigurationWidget, InlineWidget, InlineWidgetAutoEnum,
-        InlineWidgetMenu,
+        InlineWidgetMenu, SubstitutedAutoInlineWidgetMenu,
     },
 };
 use std::{f32, fmt::Display};
@@ -599,10 +599,7 @@ impl eframe::App for TekstApp {
                 self.autogo
                     .timecode
                     .timecode_reader
-                    .timecode()
-                    .inline_widget_menu(ui, "LTC Input", |ui| {
-                        self.autogo.timecode.timecode_reader.draw_configuration(ui);
-                    });
+                    .auto_inline_widget_menu(ui, "LTC Input");
                 self.autogo
                     .timecode
                     .offset

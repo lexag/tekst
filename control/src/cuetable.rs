@@ -67,7 +67,7 @@ impl egui_table::TableDelegate for ScriptLineListDelegate<'_> {
         let global_style = self.app.global_style;
 
         let mut interaction_happened = false;
-        let autofollow_progress = self.app.autogo.progress(&self.app.selected_cue());
+        let autofollow_progress = self.app.autogo.progress(&self.app.selected_cue().clone());
 
         let opmode = self.app.op_mode;
         if let Some(seq) = self.app.selected_sequence_mut() {
