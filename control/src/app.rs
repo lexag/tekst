@@ -3,7 +3,7 @@ use crate::{
     cmdline::CommandLine,
     cue::{Cue, GlobalStyle},
     cuetable,
-    errorlog::ErrorLog,
+    errorlog::{ErrorLog, log_error_msg},
     hotkeys::{self, ShortcutMap, all_default_shortcuts},
     network::NetworkWriter,
     sequence::{Sequence, SequenceSlot},
@@ -313,9 +313,10 @@ impl TekstApp {
 
     pub fn save_sequence(&mut self, sequence_idx: usize) {
         if let Some(seq) = &self.sequences[sequence_idx]
-            && let Err(e) = seq.save_to_path(seq.path.clone()) {
-                self.log_error(format!("{e}"));
-            }
+            && let Err(e) = seq.save_to_path(seq.path.clone())
+        {
+            self.log_error(format!("{e}"));
+        }
     }
 
     fn sequence_button(&mut self, ui: &mut egui::Ui, i: usize) {
@@ -368,10 +369,6 @@ impl TekstApp {
                 });
             }
         });
-    }
-
-    fn global_settings_bar(&mut self, ui: &mut egui::Ui) {
-        ui.horizontal_top(|_ui| {});
     }
 
     pub fn handle_keybinds(&mut self) {
@@ -451,15 +448,8 @@ impl TekstApp {
     }
 
     fn error_label(&mut self, ui: &mut egui::Ui) {
-        ui.add(
-            #[allow(clippy::cast_possible_truncation)]
-            egui::ProgressBar::new(self.error_log.countdown_progress() as f32)
-                .fill(ui.visuals().error_fg_color)
-                .corner_radius(0.0)
-                .desired_height(5.0),
-        );
         ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-            self.error_log.update(self.opaque_time());
+            self.error_log.update(ui.ctx(), self.opaque_time());
             if let Some(msg) = self.error_log.primary_error() {
                 ui.colored_label(
                     ui.visuals().error_fg_color,
@@ -511,7 +501,7 @@ impl eframe::App for TekstApp {
         if self.autogo.requests_go(&cue) {
             self.go();
         }
-        self.error_log.update(self.opaque_time());
+        self.error_log.update(ctx, self.opaque_time());
 
         // FIXME: this should be handled and bubbled up in the autogo function stack, updating
         // timecode reader when we want info
@@ -617,6 +607,8 @@ impl eframe::App for TekstApp {
                 self.global_style
                     .text_align
                     .autoenum_inline_widget_menu(ui, "Align");
+
+                self.error_log.auto_inline_widget_menu(ui, "Alerts");
             });
         });
 
@@ -629,8 +621,6 @@ impl eframe::App for TekstApp {
             .resizable(false)
             .exact_width(ctx.content_rect().width() / 2.0)
             .show(ctx, |ui| {
-                self.global_settings_bar(ui);
-                ui.separator();
                 cuetable::cue_table(self, ui);
             });
 

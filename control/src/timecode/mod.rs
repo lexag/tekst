@@ -2,9 +2,7 @@ use egui::Widget;
 use ks_common_generic::smpte::{Timecode, ltc::TimecodeReader};
 use ks_common_ui::{
     style,
-    traits::{
-        ConfigurationWidget, InlineWidget, InlineWidgetMenu,
-    },
+    traits::{ConfigurationWidget, InlineWidget, InlineWidgetMenu},
 };
 use std::{any::Any, error::Error, fmt::Display};
 
@@ -63,7 +61,23 @@ pub enum LTCReaderError {
 
 impl Display for LTCReaderError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "unimplemented, see src/timecode/mod.rs")
+        match self {
+            LTCReaderError::Timecode(timecode_error) => write!(f, "Timecode: {timecode_error}"),
+            LTCReaderError::RodioMicrophoneOpen(open_error) => {
+                write!(f, "OpenMic: {open_error}")
+            }
+            LTCReaderError::RodioMicrophoneList(list_error) => {
+                write!(f, "ListMic: {list_error}")
+            }
+            LTCReaderError::RodioInternal => write!(f, "Internal audio"),
+            LTCReaderError::NoSelection => write!(f, "No selection"),
+            LTCReaderError::IO(error) => write!(f, "I/O: {error}"),
+            LTCReaderError::IpParse(addr_parse_error) => write!(f, "Ip parse: {addr_parse_error}"),
+            LTCReaderError::BinaryParse(error) => write!(f, "Protocol parse: {error}"),
+            LTCReaderError::LocalIP(error) => write!(f, "Local ip: {error}"),
+            LTCReaderError::Anonymous(any) => write!(f, "Undescribed"),
+            LTCReaderError::Unknown => write!(f, "Unknown"),
+        }
     }
 }
 
