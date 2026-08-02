@@ -1,8 +1,31 @@
+## Version 0.3.0 - 2026-08-02
+
+### 🚀 Features
+
+- *(receiver)* Hardware and software support for fade transitions (#2)
+- Update to 3.0-pre ks ui
+- Break out timecode collector ui
+- Add LTC timer
+- Alerts widget
+
+### 🐛 Bug Fixes
+
+- Add startup patterns to desktop version
+- Consolidate ui and TC framerate conversion
+
+### ⚙️ Miscellaneous Tasks
+
+- Cargo clippy fix
+- Remove unused test
 ## Version 0.2.1 - 2026-07-23
 
 ### 🐛 Bug Fixes
 
 - *(timecode)* Fix build failure due to local ip on non-linux platforms
+
+### ⚙️ Miscellaneous Tasks
+
+- Update CHANGELOG.md and release 0.2.1
 ## Version 0.2.0 - 2026-07-23
 
 ### 🚀 Features
