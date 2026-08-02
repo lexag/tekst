@@ -152,7 +152,7 @@ impl AutoGo for AutoTimecode {
     fn time_until_go(&self, cue: &Cue) -> f64 {
         if (self.mode == AutoGoOpMode::Ctrl || self.mode == AutoGoOpMode::Hint)
             && let Ok(Some(tc)) = self.timecode_reader.read_timecode()
-            && let Ok(actual_tc) = tc - self.offset
+            && let actual_tc = tc - self.offset
             && let Some(cue_tc) = cue.autogo_timecode
             && self.timecode_reader.confidence() > 0.75
         {

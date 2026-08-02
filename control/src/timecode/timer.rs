@@ -27,7 +27,7 @@ impl TimecodeReader<LTCReaderError> for TimerLTCReader {
             (Timecode::from_frames(
                 u64::try_from(dur.as_millis()).map_err(|_| TimecodeError::InvalidFrames)? / 20,
                 FrameRate::Fps50,
-            )? + self.start_tc)?,
+            ) + self.start_tc),
             1.0,
         );
 

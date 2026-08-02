@@ -372,31 +372,7 @@ impl TekstApp {
     }
 
     fn global_settings_bar(&mut self, ui: &mut egui::Ui) {
-        ui.horizontal_top(|ui| {
-            ks_common_ui::components::ToggleButton::new(
-                &mut self.autoscroll,
-                ks_common_ui::material_icons::Icon::Air,
-                style::ACCENT_COLOR,
-            )
-            .ui(ui);
-
-            self.global_style
-                .brightness
-                .auto_inline_widget_menu(ui, "Brightness");
-
-            self.global_style
-                .fade_speed
-                .autoenum_inline_widget_menu(ui, "Transition");
-            self.global_style
-                .text_font
-                .autoenum_inline_widget_menu(ui, "Font");
-            self.global_style
-                .text_color
-                .autoenum_inline_widget_menu(ui, "Color");
-            self.global_style
-                .text_align
-                .autoenum_inline_widget_menu(ui, "Align");
-        });
+        ui.horizontal_top(|ui| {});
     }
 
     pub fn handle_keybinds(&mut self) {
@@ -600,13 +576,6 @@ impl eframe::App for TekstApp {
                     .timecode
                     .timecode_reader
                     .auto_inline_widget_menu(ui, "LTC Input");
-                self.autogo
-                    .timecode
-                    .offset
-                    .clone()
-                    .inline_widget_menu(ui, "LTC Delay", |ui| {
-                        self.autogo.timecode.offset.draw_configuration(ui);
-                    });
 
                 ((self.autogo.follow.elapsed() * 1000.0).round() / 1000.0)
                     .inline_widget(ui, "Follow time");
@@ -628,6 +597,30 @@ impl eframe::App for TekstApp {
                     .mode_mut()
                     .autoenum_inline_widget_menu(ui, "ATC");
                 self.op_mode.autoenum_inline_widget_menu(ui, "Mode");
+
+                ks_common_ui::components::ToggleButton::new(
+                    &mut self.autoscroll,
+                    ks_common_ui::material_icons::Icon::CenterFocusStrong,
+                    style::ACCENT_COLOR,
+                )
+                .ui(ui);
+
+                self.global_style
+                    .brightness
+                    .auto_inline_widget_menu(ui, "Brightn.");
+
+                self.global_style
+                    .fade_speed
+                    .autoenum_inline_widget_menu(ui, "Trans.");
+                self.global_style
+                    .text_font
+                    .autoenum_inline_widget_menu(ui, "Font");
+                self.global_style
+                    .text_color
+                    .autoenum_inline_widget_menu(ui, "Color");
+                self.global_style
+                    .text_align
+                    .autoenum_inline_widget_menu(ui, "Align");
             });
         });
 

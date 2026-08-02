@@ -46,7 +46,11 @@ impl TimecodeCollector {
 
     pub fn read_timecode(&self) -> Result<Option<Timecode>, LTCReaderError> {
         if self.last_known_timecode.1 > 0.2 {
-            Ok(Some(self.last_known_timecode.0))
+            Ok(Some(
+                self.last_known_timecode
+                    .0
+                    .convert_framerate(self.conversion_frame_rate),
+            ))
         } else {
             Ok(None)
         }
@@ -72,7 +76,7 @@ impl TimecodeCollector {
             }
         }
 
-        self.last_known_timecode = ((record.0 + self.offset)?, record.1);
+        self.last_known_timecode = (record.0 + self.offset, record.1);
 
         if self.conversion_copy_input {
             self.conversion_frame_rate = FrameRate::from(self.last_known_timecode.0.frame_rate);
@@ -84,7 +88,10 @@ impl TimecodeCollector {
 
 impl SubstitutedAutoInlineWidgetMenu<RenderableTimecodeHypothesis> for TimecodeCollector {
     fn substitute(&self) -> RenderableTimecodeHypothesis {
-        RenderableTimecodeHypothesis::from(self.last_known_timecode)
+        RenderableTimecodeHypothesis::from((
+            self.read_timecode().unwrap_or_default().unwrap_or_default(),
+            self.confidence(),
+        ))
     }
 }
 
