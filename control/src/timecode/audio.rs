@@ -1,20 +1,20 @@
 use crate::{
     errorlog::log_if_error,
     timecode::{
-        LTCReaderError, RenderableTimecodeHypothesis, TimecodeHypothesis, TimecodeReaderWidget,
+        LTCReaderError, RenderableTimecodeHypothesis, TimecodeHypothesis,
     },
 };
-use egui::{Color32, NumExt, Widget};
+use egui::{NumExt, Widget};
 use ks_common_generic::smpte::{
     FrameRate,
     ltc::{LtcReader, LtcReaderConfig, TimecodeReader},
 };
 use ks_common_generic::str::StaticString;
 use ks_common_ui::{
-    components::{self, Popup},
+    components::{self},
     material_icons, style,
     traits::{
-        ConfigurationWidget, InlineWidget, InlineWidgetAutoEnum, InlineWidgetMenu,
+        ConfigurationWidget, InlineWidgetAutoEnum, InlineWidgetMenu,
         SubstitutedAutoInlineWidgetMenu,
     },
 };
@@ -23,7 +23,7 @@ use rodio::microphone::{InputConfig, Microphone, MicrophoneBuilder};
 use std::{
     sync::{
         Arc, Mutex,
-        mpsc::{Receiver, Sender, TryRecvError},
+        mpsc::{Receiver, Sender},
     },
     thread::{self, JoinHandle},
     time::Duration,
@@ -155,7 +155,7 @@ impl AudioLTCReader {
                 match tc_decoder.process_samples(&chunk) {
                     Ok(_) => {
                         let res = tc_decoder.read_timecode_confidence();
-                        sender.send(res.map_err(|e| LTCReaderError::Timecode(e)));
+                        sender.send(res.map_err(LTCReaderError::Timecode));
                     }
                     Err(e) => {
                         sender.send(Err(e.into()));
@@ -222,7 +222,7 @@ impl ConfigurationWidget for AudioLTCReader {
                     } else {
                         log_if_error(ui, self.start());
                     }
-                };
+                }
             });
 
             StaticString::<32>::new(

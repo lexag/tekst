@@ -176,20 +176,20 @@ impl egui_table::TableDelegate for ScriptLineListDelegate<'_> {
                                     1.0 - autofollow_progress
                                 } else {
                                     1.0
-                                } * val as f32
+                                } * f32::from(val)
                                     / 1000.0
                             ));
-                        };
+                        }
                     }
                     10 => {
                         if let Some(val) = cue.autogo_timecode {
                             ui.monospace(val.to_string());
-                        };
+                        }
                     }
                     _ => {
                         ui.label("Unknown field");
                     }
-                };
+                }
             });
             if (cue_nr as usize) < seq.sequence.cue_pointer {
                 ui.painter()

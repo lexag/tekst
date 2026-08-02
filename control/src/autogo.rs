@@ -1,9 +1,9 @@
-use crate::{app::TekstApp, cue::Cue, timecode::collector::TimecodeCollector};
+use crate::{cue::Cue, timecode::collector::TimecodeCollector};
 use egui::Context;
 use ks_common_generic::smpte::ltc::TimecodeReader;
 use ks_common_generic::smpte::{Timecode, TimecodeOffset};
 use ks_common_ui::traits::InlineWidgetAutoEnum;
-use std::{fmt::Display, ops::Sub};
+use std::fmt::Display;
 
 pub trait AutoGo {
     fn time_until_go(&self, cue: &Cue) -> f64;
@@ -14,10 +14,10 @@ pub trait AutoGo {
     }
 
     fn requests_go(&mut self, cue: &Cue) -> bool {
-        if *self.mode_mut() != AutoGoOpMode::Hint {
-            self.time_until_go(cue) <= 0.0
-        } else {
+        if *self.mode_mut() == AutoGoOpMode::Hint {
             false
+        } else {
+            self.time_until_go(cue) <= 0.0
         }
     }
 
@@ -173,7 +173,7 @@ impl AutoGo for AutoTimecode {
         }
     }
 
-    fn max_time_until_go(&self, cue: &Cue) -> f64 {
+    fn max_time_until_go(&self, _cue: &Cue) -> f64 {
         10.0
     }
 }
@@ -217,7 +217,7 @@ impl AutoGo for AutoFollow {
         if (self.mode == AutoGoOpMode::Ctrl || self.mode == AutoGoOpMode::Hint)
             && let Some(ms) = cue.autogo_delay_ms
         {
-            let s = ms as f64 / 1000.0;
+            let s = f64::from(ms) / 1000.0;
             return s - self.elapsed();
         }
         f64::INFINITY
@@ -225,7 +225,7 @@ impl AutoGo for AutoFollow {
 
     fn max_time_until_go(&self, cue: &Cue) -> f64 {
         if let Some(ms) = cue.autogo_delay_ms {
-            return ms as f64 / 1000.0;
+            return f64::from(ms) / 1000.0;
         }
         f64::INFINITY
     }
@@ -236,7 +236,7 @@ impl AutoGo for AutoFollow {
 
     fn go_happened(&mut self, cue: &mut Cue) {
         if self.mode == AutoGoOpMode::Learn {
-            cue.autogo_delay_ms = Some((self.elapsed() * 1000.0) as u16)
+            cue.autogo_delay_ms = Some((self.elapsed() * 1000.0) as u16);
         }
         self.last_go_time = self.app_ctx.input(|i| i.time);
     }

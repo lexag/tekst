@@ -35,7 +35,7 @@ pub fn property_with_default<T: Display>(ui: &mut egui::Ui, opt: Option<T>, defa
         ui.monospace(val.to_string());
     } else {
         ui.add_enabled(false, egui::Label::new(default.to_string()));
-    };
+    }
 }
 
 pub fn color_with_default(ui: &mut egui::Ui, opt: Option<Color>, default: &Color) {
@@ -46,7 +46,7 @@ pub fn color_with_default(ui: &mut egui::Ui, opt: Option<Color>, default: &Color
             false,
             egui::Label::new(RichText::new(default.to_string()).color(default.to_egui_color())),
         );
-    };
+    }
 }
 
 pub fn ip_address_entry(ui: &mut egui::Ui, addr: &mut SocketAddrV4) {

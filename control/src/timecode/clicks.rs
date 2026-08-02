@@ -1,24 +1,23 @@
 use crate::{
     errorlog::log_if_error,
     timecode::{
-        LTCReaderError, RenderableTimecodeHypothesis, TimecodeHypothesis, TimecodeReaderWidget,
+        LTCReaderError, RenderableTimecodeHypothesis, TimecodeHypothesis,
     },
 };
-use egui::{Color32, NumExt, Widget};
+use egui::{NumExt, Widget};
 use ks_common_generic::str::StaticString;
 use ks_common_generic::{
     network::IpAddress,
     smpte::{
         FrameRate,
-        ltc::{LtcReader, LtcReaderConfig, TimecodeReader},
+        ltc::TimecodeReader,
     },
 };
 use ks_common_ui::{
-    components::{self, Popup},
+    components::{self},
     material_icons, style,
     traits::{
-        AutoInlineWidgetMenu, ConfigurationWidget, InlineWidget, InlineWidgetAutoEnum,
-        InlineWidgetMenu, SubstitutedAutoInlineWidgetMenu,
+        AutoInlineWidgetMenu, ConfigurationWidget, InlineWidgetAutoEnum, SubstitutedAutoInlineWidgetMenu,
     },
 };
 use local_ip_address::local_ip;
@@ -27,7 +26,7 @@ use std::{
     str::FromStr,
     sync::{
         Arc, Mutex,
-        mpsc::{Receiver, Sender, TryRecvError},
+        mpsc::{Receiver, Sender},
     },
     thread::{self, JoinHandle},
     time::Duration,
@@ -151,7 +150,7 @@ impl ClicksLTCReader {
 
         let mut encoded = [0; 512];
         let out = postcard::to_slice(&subscribe_message, &mut encoded)?;
-        socket.send(&out);
+        socket.send(out);
 
         let mut buf = [0u8; 256];
         Ok(thread::spawn(move || {
@@ -182,7 +181,7 @@ impl ClicksLTCReader {
                 if sender.send(Ok((tc.ltc, 1.0))).is_err() {
                     println!("tc send error");
                     break;
-                };
+                }
             }
         }))
     }
@@ -216,7 +215,7 @@ impl ConfigurationWidget for ClicksLTCReader {
                     } else {
                         log_if_error(ui, self.start());
                     }
-                };
+                }
             });
 
             self.address.auto_inline_widget_menu(ui, "Core ip address")

@@ -1,7 +1,7 @@
 use egui::Widget;
 use ks_common_ui::{
-    components, style,
-    traits::{InlineWidget, InlineWidgetMenu},
+    components,
+    traits::InlineWidgetMenu,
 };
 use std::{
     fmt::Display,
@@ -96,7 +96,7 @@ impl InlineWidgetMenu for ErrorLog {
         &mut self,
         ui: &mut egui::Ui,
         label: &str,
-        add_contents: impl FnOnce(&mut egui::Ui),
+        _add_contents: impl FnOnce(&mut egui::Ui),
     ) -> egui::Response {
         components::TextDisplay::fullwide(&match self.primary_error() {
             Some(e) => format!("(1/{}) {}", self.num_errors(), e),

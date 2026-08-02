@@ -1,9 +1,9 @@
-use crate::timecode::{LTCReaderError, RenderableTimecodeHypothesis, TimecodeHypothesis};
+use crate::timecode::{LTCReaderError, TimecodeHypothesis};
 use ks_common_generic::smpte::{
-    FrameRate, FrameRateInfo, Timecode, TimecodeError, TimecodeOffset, ltc::TimecodeReader,
+    FrameRate, Timecode, TimecodeError, ltc::TimecodeReader,
 };
 use ks_common_ui::traits::{
-    AutoInlineWidgetMenu, ConfigurationWidget, SubstitutedAutoInlineWidgetMenu,
+    ConfigurationWidget, SubstitutedAutoInlineWidgetMenu,
 };
 use std::time::Instant;
 
@@ -88,7 +88,7 @@ impl ConfigurationWidget for TimerLTCReader {
         self.start_tc.draw_configuration(ui)
     }
 
-    fn grid_contents(&mut self, ui: &mut egui::Ui) {
+    fn grid_contents(&mut self, _ui: &mut egui::Ui) {
         unimplemented!()
     }
 }

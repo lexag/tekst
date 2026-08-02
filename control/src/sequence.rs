@@ -32,7 +32,7 @@ impl Sequence {
     }
 
     pub fn insert_cue(&mut self, idx: usize, autoident: bool) {
-        let new_cue = self.cues.insert_mut(
+        let _new_cue = self.cues.insert_mut(
             idx,
             Cue {
                 ident: if autoident && let Some(prev_cue) = self.cues.get(idx - 1) {
@@ -112,7 +112,7 @@ impl SequenceSlot {
                     .unwrap_or_default()
                     .to_os_string()
                     .into_string()
-                    .map_err(|e| csv::Error::custom("invalid path"))?,
+                    .map_err(|_e| csv::Error::custom("invalid path"))?,
                 cue_pointer: 0,
                 cues: vec![],
             },
@@ -135,7 +135,7 @@ impl SequenceSlot {
         let mut wtr = csv::WriterBuilder::new()
             .has_headers(false)
             .from_path(path)
-            .map_err(|e| csv::Error::custom("invalid path"))?;
+            .map_err(|_e| csv::Error::custom("invalid path"))?;
         for cue in &self.sequence.cues {
             wtr.serialize(cue);
         }

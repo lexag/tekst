@@ -1,10 +1,9 @@
-use crate::timecode::audio::AudioLTCReader;
 use egui::Widget;
 use ks_common_generic::smpte::{Timecode, ltc::TimecodeReader};
 use ks_common_ui::{
     style,
     traits::{
-        ConfigurationWidget, InlineWidget, InlineWidgetMenu, SubstitutedAutoInlineWidgetMenu,
+        ConfigurationWidget, InlineWidget, InlineWidgetMenu,
     },
 };
 use std::{any::Any, error::Error, fmt::Display};

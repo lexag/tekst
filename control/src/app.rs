@@ -1,8 +1,8 @@
 use crate::{
-    autogo::{self, AutoGo, AutoGoConsolidator, AutoGoOpMode, AutoTimecode},
+    autogo::{AutoGo, AutoGoConsolidator},
     cmdline::CommandLine,
     cue::{Cue, GlobalStyle},
-    cuetable, elements,
+    cuetable,
     errorlog::ErrorLog,
     hotkeys::{self, ShortcutMap, all_default_shortcuts},
     network::NetworkWriter,
@@ -181,7 +181,7 @@ impl TekstApp {
                         }
                     }
                     Err(e) => {
-                        errs_to_log.push(format!("{}", e));
+                        errs_to_log.push(format!("{e}"));
                         *seq = SequenceSlot {
                             path: seq.path.clone(),
                             sequence: Sequence::example(),
@@ -305,18 +305,17 @@ impl TekstApp {
     pub fn load_sequence_file(&mut self, sequence_idx: usize) -> bool {
         if sequence_idx >= self.sequences.len() {
             return false;
-        };
+        }
         self.file_pick_pointer = PatchPointer::Sequence(sequence_idx);
         self.file_dialog.pick_file();
         true
     }
 
     pub fn save_sequence(&mut self, sequence_idx: usize) {
-        if let Some(seq) = &self.sequences[sequence_idx] {
-            if let Err(e) = seq.save_to_path(seq.path.clone()) {
-                self.log_error(format!("{}", e));
-            };
-        }
+        if let Some(seq) = &self.sequences[sequence_idx]
+            && let Err(e) = seq.save_to_path(seq.path.clone()) {
+                self.log_error(format!("{e}"));
+            }
     }
 
     fn sequence_button(&mut self, ui: &mut egui::Ui, i: usize) {
@@ -372,7 +371,7 @@ impl TekstApp {
     }
 
     fn global_settings_bar(&mut self, ui: &mut egui::Ui) {
-        ui.horizontal_top(|ui| {});
+        ui.horizontal_top(|_ui| {});
     }
 
     pub fn handle_keybinds(&mut self) {
@@ -441,7 +440,7 @@ impl TekstApp {
             }
         }
 
-        egui::ProgressBar::new(1.0 - self.autogo.progress(&self.selected_cue()))
+        egui::ProgressBar::new(1.0 - self.autogo.progress(self.selected_cue()))
             .fill(color)
             .corner_radius(10.0)
             .ui(ui);
@@ -517,21 +516,18 @@ impl eframe::App for TekstApp {
         // FIXME: this should be handled and bubbled up in the autogo function stack, updating
         // timecode reader when we want info
         if let Err(e) = self.autogo.timecode.timecode_reader.update() {
-            self.log_error(format!("Timecode error {e}"))
-        };
+            self.log_error(format!("Timecode error {e}"));
+        }
 
         ctx.request_repaint();
 
         if let Some(path) = self.file_dialog.take_picked() {
-            match self.file_pick_pointer {
-                PatchPointer::Sequence(sequence_idx) => {
-                    let res = SequenceSlot::load_from_path(path);
-                    match res {
-                        Ok(s) => self.sequences[sequence_idx] = Some(s),
-                        Err(e) => self.log_error(format!("{}", e)),
-                    }
+            if let PatchPointer::Sequence(sequence_idx) = self.file_pick_pointer {
+                let res = SequenceSlot::load_from_path(path);
+                match res {
+                    Ok(s) => self.sequences[sequence_idx] = Some(s),
+                    Err(e) => self.log_error(format!("{e}")),
                 }
-                _ => {}
             }
         }
 
@@ -715,7 +711,7 @@ fn render_screen_preview(
     let (resp, p) = ui.allocate_painter((width, font_size * 2.5).into(), Sense::CLICK);
     p.rect_filled(resp.rect, 10.0, Color32::BLACK);
     let align = content.align;
-    let brightness_factor = content.brightness as f32 / 255.0;
+    let brightness_factor = f32::from(content.brightness) / 255.0;
     for idx in [0, 1] {
         let anchor = text_anchor(resp.rect, idx, align, font_size);
         let alignment = text_align(resp.rect, idx, align);
@@ -738,7 +734,7 @@ fn render_screen_preview(
                 text,
                 font_id,
                 Color32::DARK_GRAY
-                    .gamma_multiply((0.5 - content.brightness as f32 / 255.0).max(0.0)),
+                    .gamma_multiply((0.5 - f32::from(content.brightness) / 255.0).max(0.0)),
             );
         }
     }

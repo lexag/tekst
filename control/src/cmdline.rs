@@ -1,9 +1,9 @@
 use crate::{
-    app::{PatchPointer, TekstApp},
+    app::TekstApp,
     cue::Cue,
     sequence::SequenceSlot,
 };
-use std::{fmt::Display, slice::Iter, thread::current};
+use std::{fmt::Display, slice::Iter};
 use tekst_common::primitive::{Color, TextAlign, Transition};
 
 #[derive(Clone)]
@@ -96,7 +96,7 @@ impl CommandLine {
     }
 
     pub fn clear(&mut self) {
-        *self = Self::new()
+        *self = Self::new();
     }
 
     pub fn backspace(&mut self) {
@@ -467,11 +467,11 @@ impl Display for CommandLineToken {
             Self::Time => write!(f, "TIME"),
             Self::Transition => write!(f, "TRANSIT"),
             Self::Brightness => write!(f, "BRIGHT"),
-            Self::Ident(s) => write!(f, "{}", s),
-            Self::ColorVal(v) => write!(f, "{}", v),
-            Self::ValueVal(v) => write!(f, "{}", v),
-            Self::TransitionVal(v) => write!(f, "{}", v),
-            Self::AlignVal(v) => write!(f, "{}", v),
+            Self::Ident(s) => write!(f, "{s}"),
+            Self::ColorVal(v) => write!(f, "{v}"),
+            Self::ValueVal(v) => write!(f, "{v}"),
+            Self::TransitionVal(v) => write!(f, "{v}"),
+            Self::AlignVal(v) => write!(f, "{v}"),
         }
     }
 }

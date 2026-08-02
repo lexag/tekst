@@ -1,5 +1,5 @@
 use crate::{
-    app::{PatchPointer, TekstApp},
+    app::TekstApp,
     autogo::{AutoGo, AutoGoOpMode},
     cmdline::CommandLineToken,
     cue::Cue,

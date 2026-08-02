@@ -1,4 +1,3 @@
-use std::error::Error;
 use std::io::Write;
 use std::net::{Ipv4Addr, SocketAddrV4, TcpStream};
 

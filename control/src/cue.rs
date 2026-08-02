@@ -61,7 +61,7 @@ impl Cue {
 fn to_ahex(mut val: u8, num_bytes: usize) -> Vec<u8> {
     let mut out = vec![];
     while val > 0 {
-        let digit = (val & 0xF);
+        let digit = val & 0xF ;
         if digit <= 9 {
             out.push(digit + 0x30);
         } else {
