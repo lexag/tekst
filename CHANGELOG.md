@@ -1,3 +1,9 @@
+## Version 0.3.1 - 2026-08-11
+
+### 🐛 Bug Fixes
+
+- AFW and ATC no longer autogo if more than 10 seconds behind. This allows for timecode in non-linear order without issues
+- Clicks timecode device now pings core every 5 minutes.
 ## Version 0.3.0 - 2026-08-02
 
 ### 🚀 Features
@@ -17,6 +23,7 @@
 
 - Cargo clippy fix
 - Remove unused test
+- Update CHANGELOG.md and release 0.3.0
 ## Version 0.2.1 - 2026-07-23
 
 ### 🐛 Bug Fixes
