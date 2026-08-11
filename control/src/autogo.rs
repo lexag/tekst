@@ -17,7 +17,8 @@ pub trait AutoGo {
         if *self.mode_mut() == AutoGoOpMode::Hint {
             false
         } else {
-            self.time_until_go(cue) <= 0.0
+            let time_left = self.time_until_go(cue);
+            time_left <= 0.0 && time_left > -10.0
         }
     }
 
