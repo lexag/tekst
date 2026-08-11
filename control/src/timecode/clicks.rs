@@ -1,23 +1,20 @@
 use crate::{
     errorlog::log_if_error,
-    timecode::{
-        LTCReaderError, RenderableTimecodeHypothesis, TimecodeHypothesis,
-    },
+    timecode::{LTCReaderError, RenderableTimecodeHypothesis, TimecodeHypothesis},
 };
 use egui::{NumExt, Widget};
+use ks_common_clicks::protocol::request::Request;
 use ks_common_generic::str::StaticString;
 use ks_common_generic::{
     network::IpAddress,
-    smpte::{
-        FrameRate,
-        ltc::TimecodeReader,
-    },
+    smpte::{FrameRate, ltc::TimecodeReader},
 };
 use ks_common_ui::{
     components::{self},
     material_icons, style,
     traits::{
-        AutoInlineWidgetMenu, ConfigurationWidget, InlineWidgetAutoEnum, SubstitutedAutoInlineWidgetMenu,
+        AutoInlineWidgetMenu, ConfigurationWidget, InlineWidgetAutoEnum,
+        SubstitutedAutoInlineWidgetMenu,
     },
 };
 use local_ip_address::local_ip;
@@ -29,7 +26,7 @@ use std::{
         mpsc::{Receiver, Sender},
     },
     thread::{self, JoinHandle},
-    time::Duration,
+    time::{Duration, Instant},
 };
 
 pub struct ClicksLTCReader {
@@ -102,6 +99,10 @@ impl ClicksLTCReader {
 
     pub fn start(&mut self) -> Result<(), LTCReaderError> {
         let _thread_was_running = self.stop_previous_listening_thread()?;
+        *self
+            .request_thread_stop
+            .lock()
+            .map_err(|_| LTCReaderError::RodioInternal)? = false;
         self.listening_thread = Some(self.init_listening_thread()?);
         Ok(())
     }
@@ -154,8 +155,23 @@ impl ClicksLTCReader {
 
         let mut buf = [0u8; 256];
         Ok(thread::spawn(move || {
+            let mut last_ping_time = Instant::now();
             loop {
+                if Instant::now().duration_since(last_ping_time) > Duration::from_mins(5) {
+                    let mut buf = [0u8; 2048];
+                    let Ok(packet) = postcard::to_slice(&Request::Ping, &mut buf) else {
+                        println!("Ping packet serialization error");
+                        break;
+                    };
+                    if socket.send(packet).is_err() {
+                        println!("Ping error");
+                        break;
+                    }
+                    last_ping_time = Instant::now();
+                }
+
                 if request_stop.try_lock().is_ok_and(|b| *b) {
+                    println!("tc thread stop requested");
                     break;
                 }
 
